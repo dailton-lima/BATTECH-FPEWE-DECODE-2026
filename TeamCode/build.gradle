@@ -1,0 +1,37 @@
+// Include common definitions from above.
+apply from: '../build.common.gradle'
+apply from: '../build.dependencies.gradle'
+
+android {
+    namespace = 'org.firstinspires.ftc.teamcode'
+
+    packagingOptions {
+        jniLibs.useLegacyPackaging true
+    }
+}
+
+dependencies {
+    implementation project(':FtcRobotController')
+
+    // Bibliotecas Core do FTC e Android
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+
+    // PedroPathing
+    implementation 'com.pedropathing:ftc:2.0.4'
+    implementation 'com.pedropathing:telemetry:1.0.0'
+
+    // NextFTC
+    implementation 'dev.nextftc:ftc:1.0.1'
+    implementation 'dev.nextftc:control:1.0.0'
+    implementation 'dev.nextftc:hardware:1.0.1'
+    implementation 'dev.nextftc:bindings:1.0.1'
+    implementation 'dev.nextftc.extensions:pedro:1.0.0'
+
+    // SolversLib
+    implementation "org.solverslib:core:0.3.4"
+    implementation "org.solverslib:pedroPathing:0.3.4"
+
+    // Utilitários (Painel e Dashboard)
+    implementation 'com.bylazar:fullpanels:1.0.9'
+    implementation 'com.acmerobotics.dashboard:dashboard:0.5.1'
+}
