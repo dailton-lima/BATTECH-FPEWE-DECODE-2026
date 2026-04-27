@@ -61,11 +61,10 @@ public class TeleOpCommandBased extends CommandOpMode {
                 () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL)
         ));
 
-        // RESET IMU: Se o piloto 1 se perder no campo, ele reseta a frente
-        piloto1.getGamepadButton(GamepadKeys.Button.A)
+        piloto1.getGamepadButton(GamepadKeys.Button.BACK)
                 .whenPressed(new InstantCommand(() -> drive.resetHeading()));
 
-        // SLOW MODE: Reduz velocidade para precisão no encaixe
+        // SLOW MODE: Reduz velocidade para precisão
         piloto1.getGamepadButton(GamepadKeys.Button.RIGHT_STICK_BUTTON)
                 .toggleWhenPressed(
                         new InstantCommand(() -> driveSpeed = 0.4),
@@ -86,9 +85,6 @@ public class TeleOpCommandBased extends CommandOpMode {
             }
         }, intake).schedule();
 
-        // RESETAR ORIENTAÇÃO DO ROBÔ
-        piloto1.getGamepadButton(GamepadKeys.Button.Y)
-                .whenPressed(new InstantCommand(drive::resetHeading));
 
         // =========================================================
         // PILOTO 2: TURRET + SHOOTER + HOOD (O "ARTILHEIRO")
@@ -104,20 +100,20 @@ public class TeleOpCommandBased extends CommandOpMode {
                         () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL)
                 ));
 
-        // LB (Toggle): Ligar o Shooter antecipadamente (Spin-up manual)
+        // LB (Toggle): Ligar o Shooter antecipadamente
         piloto2.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
                 .toggleWhenPressed(
                         new InstantCommand(() -> shooter.setTargetRPM(6000)),
                         new InstantCommand(() -> shooter.stop())
                 );
 
-        // PRESETS DE DISTÂNCIA (Mudar RPM rapidamente)
+        // PRESETS DE DISTÂNCIA
         piloto2.getGamepadButton(GamepadKeys.Button.Y)
                 .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(6000))); // High Basket
         piloto2.getGamepadButton(GamepadKeys.Button.X)
                 .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(4000))); // Low Basket
 
-        // AJUSTE FINO (D-Pad): Mover a Turret manualmente em caso de emergência
+        // AJUSTE FINO (D-Pad): Mover a Turret manualmente
         new RunCommand(() -> {
             if (gamepad2.dpad_left) turret.setAngle(turret.getCurrentAngle() - 1);
             if (gamepad2.dpad_right) turret.setAngle(turret.getCurrentAngle() + 1);

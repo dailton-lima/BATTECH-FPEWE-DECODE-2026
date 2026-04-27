@@ -59,13 +59,10 @@ public class ShootOnMoveCommand extends CommandBase {
         Pose2d velAtual = drive.getVelocity();
 
         // 2. CÁLCULO DE DISTÂNCIA E ÂNGULO TEÓRICO (MAPA)
-        // >>> ALTERAÇÃO AQUI 1/3: Criamos a variável distFinal baseada na odometria <<<
         double distFinal = poseAtual.getTranslation().getDistance(alvoAtual.getTranslation());
 
-        // >>> ALTERAÇÃO AQUI 2/3: Adicionamos a correção pela câmera (Média Ponderada) <<<
         if (vision.hasTarget(tagAtiva)) {
             double distCamera = vision.getDistance(tagAtiva);
-            // 80% do peso para a câmera (realidade), 20% para a odometria (estabilidade)
             distFinal = (distCamera * 0.8) + (distFinal * 0.2);
         }
         // =========================================================================
@@ -80,7 +77,6 @@ public class ShootOnMoveCommand extends CommandBase {
         double anguloBaseTurret = anguloGlobal - poseAtual.getHeading();
 
         // 3. COMPENSAÇÃO DE VELOCIDADE (Lead Shot)
-        // >>> ALTERAÇÃO AQUI 3/3: Passamos a 'distFinal' corrigida para o cálculo físico <<<
         double compensacaoDinamica = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distFinal, velAtual);
 
         // 4. CHECK DA CÂMERA (Correção de Drift - Horizontal)
@@ -94,14 +90,12 @@ public class ShootOnMoveCommand extends CommandBase {
 
         // 6. ATUAÇÃO
         turret.setAngle(anguloFinal);
-
-        // >>> ALTERAÇÃO AQUI BÔNUS: O hood também recebe a distância ultra-precisa <<<
         hood.setAngleFromDistance(distFinal);
 
         // 7. VALIDAÇÃO PARA DISPARO
         double erroDeMira = Math.abs(turret.getCurrentAngle() - anguloFinal);
 
-        // Se a câmera estiver vendo, usamos o tx DELA para validar
+        // Se a câmera estiver vendo, usa o tx DELA para validar
         if (vision.hasTarget(tagAtiva)) {
             erroDeMira = Math.abs(vision.getTx(tagAtiva));
         }

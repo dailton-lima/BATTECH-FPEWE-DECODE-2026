@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
 
+import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
@@ -17,10 +18,8 @@ public class DriveSubsystem extends SubsystemBase {
 
     DcMotor fe, fd, te, td;
     VoltageSensor battery;
-    IMU imu;
 
-    // Quando você instanciar o PedroPathing, ele entrará aqui
-    // public Follower follower;
+    public Follower follower;
 
     public DriveSubsystem(HardwareMap hw, VoltageSensor battery) {
         this.battery = battery;
@@ -32,14 +31,6 @@ public class DriveSubsystem extends SubsystemBase {
 
         fe.setDirection(DcMotorSimple.Direction.REVERSE);
         te.setDirection(DcMotorSimple.Direction.REVERSE);
-
-        imu = hw.get(IMU.class, "imu");
-
-        // Verifique se essa orientação bate com a posição física do seu Hub!
-        IMU.Parameters parameters = new IMU.Parameters(new RevHubOrientationOnRobot(
-                RevHubOrientationOnRobot.LogoFacingDirection.UP,
-                RevHubOrientationOnRobot.UsbFacingDirection.FORWARD));
-        imu.initialize(parameters);
     }
 
     private double compensar(double p) {
@@ -47,12 +38,12 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     public void resetHeading() {
-        imu.resetYaw();
+        follower.setHeading(0);
     }
 
     public void drive(double x, double y, double rot) {
         // Pega o ângulo para rotacionar os vetores do joystick
-        double botHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        double botHeading = follower.getPose().getHeading();
 
         // Rotação de vetores para Field-Oriented
         double rotX = x * Math.cos(-botHeading) - y * Math.sin(-botHeading);
@@ -73,28 +64,14 @@ public class DriveSubsystem extends SubsystemBase {
         td.setPower(compensar(tdP / denominator));
     }
 
-    /**
-     * Retorna a posição do robô. No futuro, use:
-     * return new Pose2d(follower.getPose().getX(), follower.getPose().getY(),
-     * new Rotation2d(follower.getPose().getHeading()));
-     */
-
     public Pose2d getPose() {
         // Exemplo de como plugar o PedroPathing
         return new Pose2d(follower.getPose().getX(), follower.getPose().getY(),
                 new Rotation2d(follower.getPose().getHeading()));
     }
 
-    /**
-     * Retorna a velocidade do robô. Crucial para o cálculo do ShotSolution!
-     * No futuro, use: return follower.getVelocity();
-     */
-    /**
-     * Retorna a velocidade do robô. Crucial para o cálculo do ShotSolution!
-     */
     public Pose2d getVelocity() {
-        // 1. Pega a velocidade vetorial (Vector do PedroPathing)
-        // Se a palavra Vector ficar vermelha, clique nela e dê Alt+Enter para importar!
+        // 1. Pega a velocidade vetorial
         Vector v = follower.getVelocity();
 
         // 2. Extrai os componentes X e Y do vetor
