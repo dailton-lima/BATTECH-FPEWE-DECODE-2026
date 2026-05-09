@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.commands;
 
 import com.seattlesolvers.solverslib.command.CommandBase;
 import com.seattlesolvers.solverslib.geometry.Pose2d;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.subsystems.*;
 import org.firstinspires.ftc.teamcode.util.ShotSolution;
 
@@ -17,17 +19,18 @@ public class ShootOnMoveCommand extends CommandBase {
     private final IntakeSubsystem intake;
     private final HoodSubsystem hood;
 
-    // Fornecedores dinâmicos do FieldConstants
     private final Supplier<Pose2d> targetPoseSupplier;
     private final Supplier<Integer> targetTagIdSupplier;
 
-    // Variável para guardar o erro acumulado entre odometria e visão
-    private double cameraOffsetCorrection = 0;
-    private boolean dadosValidos = false;
+    private final Telemetry telemetry;
+
+    // Timer interno para não "metralhar" o comando do indexador no CommandScheduler
+    private long lastFireTime = 0;
+    private static final long FIRE_COOLDOWN_MS = 500; // Meio segundo entre tiros
 
     public ShootOnMoveCommand(TurretSubsystem turret, DriveSubsystem drive, VisionSubsystem vision,
                               ShooterSubsystem shooter, IndexerSubsystem indexer, IntakeSubsystem intake, HoodSubsystem hood,
-                              Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier) {
+                              Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier, Telemetry telemetry) {
         this.turret = turret;
         this.drive = drive;
         this.vision = vision;
@@ -37,83 +40,111 @@ public class ShootOnMoveCommand extends CommandBase {
         this.hood = hood;
         this.targetPoseSupplier = targetPoseSupplier;
         this.targetTagIdSupplier = targetTagIdSupplier;
+        this.telemetry = telemetry; // <--- Salva a telemetria
 
+        // IMPORTANTE: Este comando não deve dar "require" no Indexer nem no Intake
         addRequirements(turret, shooter, hood);
     }
 
     @Override
     public void initialize() {
-        dadosValidos = false;
-        cameraOffsetCorrection = 0; // Reseta o erro acumulado ao iniciar
-        shooter.setTargetRPM(6000);
+        shooter.setTargetRPM(4000);
     }
 
     @Override
     public void execute() {
-        // Pega o Alvo e a Tag corretos para este exato momento da partida
         Pose2d alvoAtual = targetPoseSupplier.get();
         int tagAtiva = targetTagIdSupplier.get();
 
-        // 1. DADOS DE ODOMETRIA (Sem Delay)
         Pose2d poseAtual = drive.getPose();
         Pose2d velAtual = drive.getVelocity();
 
-        // 2. CÁLCULO DE DISTÂNCIA E ÂNGULO TEÓRICO (MAPA)
-        double distFinal = poseAtual.getTranslation().getDistance(alvoAtual.getTranslation());
+        // ====================================================================
+        // 1. DISTÂNCIA 100% CÂMERA (Com salva-vidas de Odometria)
+        // ====================================================================
+        double distFinal;
+
+        double distOdo = Math.hypot(alvoAtual.getX() - poseAtual.getX(), alvoAtual.getY() - poseAtual.getY());
+        double distCamera = 0;
 
         if (vision.hasTarget(tagAtiva)) {
-            double distCamera = vision.getDistance(tagAtiva);
-            distFinal = (distCamera * 0.8) + (distFinal * 0.2);
+            // Confia plenamente na câmera (com o seu offset de 12 polegadas)
+            distCamera = 12 + vision.getDistance(tagAtiva);
+            distFinal = distCamera;
+        } else {
+            // Fallback: Se a câmera piscar, usa o mapa
+            distFinal = distOdo;
         }
-        // =========================================================================
 
-        // Ângulo absoluto do robô para o cesto
+        // ====================================================================
+        // TELEMETRIA DE DEBUG (Mostra os dois valores na tela)
+        // ====================================================================
+        telemetry.addData("MIRA - Distância Odometria", distOdo);
+        telemetry.addData("MIRA - Distância Limelight", vision.hasTarget(tagAtiva) ? distCamera : "Sem Alvo");
+        telemetry.addData("MIRA - Distância Final Usada", distFinal);
+
+        // ====================================================================
+        // 2. MATEMÁTICA DA TORRE (Odometria Base)
+        // ====================================================================
         double anguloGlobal = Math.toDegrees(Math.atan2(
                 alvoAtual.getY() - poseAtual.getY(),
                 alvoAtual.getX() - poseAtual.getX()
         ));
 
-        // Ângulo que a turret deveria estar relativo ao robô
-        double anguloBaseTurret = anguloGlobal - poseAtual.getHeading();
+        double headingGraus = Math.toDegrees(poseAtual.getHeading());
+        double anguloBaseTurret = anguloGlobal - headingGraus;
 
-        // 3. COMPENSAÇÃO DE VELOCIDADE (Lead Shot)
-        double compensacaoDinamica = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distFinal, velAtual);
+        double anguloGlobalRad = Math.atan2(
+                alvoAtual.getY() - poseAtual.getY(),
+                alvoAtual.getX() - poseAtual.getX()
+        );
 
-        // 4. CHECK DA CÂMERA (Correção de Drift - Horizontal)
-        if (vision.hasTarget(tagAtiva)) {
-            double tx = vision.getTx(tagAtiva);
-            cameraOffsetCorrection += (tx * 0.1);
-        }
+        // Angle Wrap
+        while (anguloBaseTurret > 180) anguloBaseTurret -= 360;
+        while (anguloBaseTurret <= -180) anguloBaseTurret += 360;
 
-        // 5. CÁLCULO FINAL
-        double anguloFinal = anguloBaseTurret - compensacaoDinamica + cameraOffsetCorrection;
+        // ====================================================================
+        // 3. SOBREPOSIÇÃO DA CÂMERA (Matemática Absoluta - Fim do erro de 5 graus)
+        // ====================================================================
+//        if (vision.hasTarget(tagAtiva)) {
+//            // Descobre a posição real do alvo somando onde a torre está com o erro (tx)
+//            double anguloAbsolutoDaTag = turret.getCurrentAngle() + vision.getTx(tagAtiva);
+//            anguloBaseTurret = anguloAbsolutoDaTag;
+//        }
 
-        // 6. ATUAÇÃO
+        // ====================================================================
+        // 4. COMPENSAÇÃO DE VELOCIDADE (LEAD SHOT) E ATUAÇÃO
+        // ====================================================================
+        double compensacaoDinamica = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distFinal, velAtual, anguloGlobalRad);
+
+        double anguloFinal = anguloBaseTurret - compensacaoDinamica;
         turret.setAngle(anguloFinal);
-        hood.setAngleFromDistance(distFinal);
+        hood.setPositionFromDistance(distFinal);
+        shooter.setRPMFromDistance(distFinal); // <--- ADICIONE ESTA LINHA!
 
-        // 7. VALIDAÇÃO PARA DISPARO
+        // ====================================================================
+        // 5. VALIDAÇÃO DE DISPARO RIGOROSA
+        // ====================================================================
         double erroDeMira = Math.abs(turret.getCurrentAngle() - anguloFinal);
 
-        // Se a câmera estiver vendo, usa o tx DELA para validar
-        if (vision.hasTarget(tagAtiva)) {
-            erroDeMira = Math.abs(vision.getTx(tagAtiva));
-        }
+        boolean torreCravada = erroDeMira < 0.5;
+        boolean motorPronto = shooter.isAtTargetRPM();
 
-        dadosValidos = (erroDeMira < 1.5) && shooter.isAtTargetRPM();
+        // 6. O DISPARO (Agora com a trava da 'torreCravada' ativa!)
+        if (torreCravada && motorPronto && (System.currentTimeMillis() - lastFireTime > FIRE_COOLDOWN_MS)) {
+
+            new FireSequenceCommand(indexer, intake).schedule();
+            lastFireTime = System.currentTimeMillis();
+        }
     }
 
     @Override
     public boolean isFinished() {
-        return dadosValidos;
+        return false;
     }
 
     @Override
     public void end(boolean interrupted) {
-        if (!interrupted) {
-            new FireSequenceCommand(indexer, intake, shooter).schedule();
-        } else {
-            shooter.stop();
-        }
+        shooter.stop();
     }
 }

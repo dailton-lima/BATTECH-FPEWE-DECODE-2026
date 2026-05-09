@@ -4,8 +4,9 @@ import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
-import com.seattlesolvers.solverslib.util.InterpLUT; // Importação da tabela
+import com.seattlesolvers.solverslib.util.InterpLUT;
 
 import java.util.Arrays;
 
@@ -13,54 +14,71 @@ import java.util.Arrays;
 public class HoodSubsystem extends SubsystemBase {
 
     private final Servo hoodServo;
+    private final Telemetry telemetry;
 
-    public static final double GEAR_RATIO = 10.0;
-    public static final double SERVO_MAX_DEGREES = 200.0;
-    public static final double HOOD_MAX_DEGREES = SERVO_MAX_DEGREES / GEAR_RATIO;
-
-    public static double OFFSET = 0.0;
+    // Memória para exibir na telemetria
+    private double currentPosition = 0.0;
 
     // =========================================================
-    // A LUT: Distância (metros/polegadas) -> Ângulo do Hood (graus)
+    // A LUT: Distância (Polegadas) -> Posição Física do Servo (0.0 a 1.0)
     // =========================================================
     public final InterpLUT hoodLUT = new InterpLUT(
-            // Distâncias reais da Limelight (Ex: 1m, 1.5m, 2m, 2.5m, 3m)
-            Arrays.asList(1.0, 1.5, 2.0, 2.5, 3.0),
+            // Distâncias em Polegadas
+            // 50cm, 1m, 1.5m, 2m, 2.5m, 3m, 3.5m
 
-            // Ângulos do Hood para acertar o tiro nessas distâncias
-            Arrays.asList(5.0, 8.5, 12.0, 15.5, 18.0)
+            Arrays.asList(20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0),
+
+            // Posição correspondente do Servo (Ajuste fisicamente no Dashboard)
+            // Exemplo: 0.1 (baixo) até 0.8 (alto)
+            Arrays.asList(0.3, 0.6, 0.8, 0.8, 0.7, 0.6, 0.55)
     );
 
-    public HoodSubsystem(HardwareMap hwMap) {
+    public HoodSubsystem(HardwareMap hwMap, Telemetry telemetry) {
+        this.telemetry = telemetry;
         hoodServo = hwMap.get(Servo.class, "hoodServo");
 
-        // É obrigatório chamar o createLUT() no construtor para a matemática interna funcionar
+        // Obrigatório para a interpolação matemática funcionar
         hoodLUT.createLUT();
 
-        setAngle(0);
+        // Inicia o capô numa posição neutra/baixa
+        setPosition(0.0);
     }
 
     /**
-     * O NOVO MÉTODO INTELIGENTE:
-     * Recebe a distância da Limelight, consulta a tabela e já ajusta o servo.
+     * O MÉTODO INTELIGENTE:
+     * Recebe a distância da Limelight (Polegadas), consulta a tabela e já move o servo.
      */
-    public void setAngleFromDistance(double distance) {
-        // Pega o valor interpolado na tabela
-        double calculoDoAngulo = hoodLUT.get(distance);
+    public void setPositionFromDistance(double distanceInches) {
+        // Pega a posição bruta (0 a 1) diretamente da tabela
+        double targetPos = hoodLUT.get(distanceInches);
 
-        // Manda o capô para esse ângulo
-        setAngle(calculoDoAngulo);
+        setPosition(targetPos);
     }
 
-    // O método original continua igual, para fazer a matemática do Servo
-    public void setAngle(double targetHoodAngle) {
-        double safeAngle = Range.clip(targetHoodAngle, 0, HOOD_MAX_DEGREES);
-        double servoAngle = safeAngle * GEAR_RATIO;
-        double servoPosition = (servoAngle / SERVO_MAX_DEGREES) + OFFSET;
-        hoodServo.setPosition(servoPosition);
+    /**
+     * Método direto para mover o servo e registrar na telemetria
+     */
+    public void setPosition(double targetPosition) {
+        // O Range.clip garante que se a tabela falhar ou for mal configurada,
+        // o servo não tenta passar do seu limite elétrico, evitando queimas.
+        double safePosition = Range.clip(targetPosition, 0.1, 1.0);
+
+        this.currentPosition = safePosition;
+        hoodServo.setPosition(safePosition);
+        register();
     }
 
     public double getServoPosition() {
-        return hoodServo.getPosition();
+        return currentPosition;
+    }
+
+    // =========================================================
+    // LOOP DE TELEMETRIA AUTOMÁTICO
+    // =========================================================
+    @Override
+    public void periodic() {
+        telemetry.addData("Hood - Posição Alvo LUT (0 a 1)", currentPosition);
+        // Descomente abaixo se quiser ver o hardware real, mas costuma ser idêntico ao alvo
+        // telemetry.addData("Hood - Posição Física Real", hoodServo.getPosition());
     }
 }

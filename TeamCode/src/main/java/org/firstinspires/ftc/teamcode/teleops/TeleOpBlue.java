@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.teleops;
 
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.util.FieldConstants;
 
@@ -12,6 +13,7 @@ public class TeleOpBlue extends TeleOpCommandBased {
         FieldConstants.activeAlliance = FieldConstants.Alliance.BLUE;
 
         // 3. Roda todo aquele seu código gigante do TeleOpCommandBased
+
         super.initialize();
     }
 }

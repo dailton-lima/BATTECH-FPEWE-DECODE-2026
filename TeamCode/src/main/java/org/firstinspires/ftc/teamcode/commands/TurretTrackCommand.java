@@ -14,11 +14,12 @@ public class TurretTrackCommand extends CommandBase {
     private final ShooterSubsystem shooter;
     private final HoodSubsystem hood;
 
-    // Fornecedores dinâmicos de dados
     private final Supplier<Pose2d> targetPoseSupplier;
     private final Supplier<Integer> targetTagIdSupplier;
 
-    private double cameraOffsetCorrection = 0;
+    // Constante Proporcional (kP) para a Câmera
+    // Se a torre tremer, diminua este valor. Se demorar a focar, aumente.
+    private static final double VISION_KP = 0.4;
 
     public TurretTrackCommand(TurretSubsystem turret, DriveSubsystem drive,
                               VisionSubsystem vision, ShooterSubsystem shooter, HoodSubsystem hood,
@@ -39,25 +40,57 @@ public class TurretTrackCommand extends CommandBase {
         Pose2d poseAtual = drive.getPose();
         Pose2d velAtual = drive.getVelocity();
 
-        // Pega a posição e a tag exatas para a aliança atual
         Pose2d alvoAtual = targetPoseSupplier.get();
         int tagAtiva = targetTagIdSupplier.get();
 
-        // 1. Cálculo por Odometria
-        double distOdo = Math.hypot(alvoAtual.getX() - poseAtual.getX(), alvoAtual.getY() - poseAtual.getY());
-        double anguloGlobal = Math.toDegrees(Math.atan2(alvoAtual.getY() - poseAtual.getY(), alvoAtual.getX() - poseAtual.getX()));
-        double anguloBaseTurret = anguloGlobal - poseAtual.getHeading();
+        // ========================================================
+        // 1. CÁLCULO DE ODOMETRIA (Distância e Ângulo)
+        // ========================================================
+        double deltaX = alvoAtual.getX() - poseAtual.getX();
+        double deltaY = alvoAtual.getY() - poseAtual.getY();
 
-        // 2. Compensação de Velocidade
-        double compensacao = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distOdo, velAtual);
+        double distOdo = Math.hypot(deltaX, deltaY);
+        double anguloGlobalGraus = Math.toDegrees(Math.atan2(deltaY, deltaX));
 
-        // 3. Ajuste fino pela Câmera (Filtra pela Tag correta!)
+        // Pega a rotação do chassi (Assume que o getHeading() retorna Radianos, padrão do PedroPathing)
+        // Se o seu getHeading já estiver devolvendo graus, apague o Math.toDegrees()
+        double headingChassiGraus = Math.toDegrees(poseAtual.getHeading());
+
+        // Ângulo base que a torre precisa virar
+        double anguloBaseTurret = anguloGlobalGraus - headingChassiGraus;
+
+        // NORMALIZAÇÃO DE ÂNGULO (O Segredo para não travar!)
+        // Transforma ângulos absurdos (ex: 270) no caminho mais curto (ex: -90)
+        while (anguloBaseTurret > 180) anguloBaseTurret -= 360;
+        while (anguloBaseTurret <= -180) anguloBaseTurret += 360;
+
+        // ========================================================
+        // 2. COMPENSAÇÃO DE VELOCIDADE (Lead Shot)
+        // ========================================================
+
+        double anguloGlobalRad = Math.atan2(
+                alvoAtual.getY() - poseAtual.getY(),
+                alvoAtual.getX() - poseAtual.getX()
+        );
+
+        double compensacao = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distOdo, velAtual, anguloGlobalRad);
+
+        // ========================================================
+        // 3. AJUSTE FINO PELA CÂMERA
+        // ========================================================
+        double cameraOffsetCorrection = 0; // REINICIA A CADA LOOP (Fim do Bug do Windup)
+
         if (vision.hasTarget(tagAtiva)) {
-            cameraOffsetCorrection += (vision.getTx(tagAtiva) * 0.05);
+            // Usa APENAS o sinal de Igual (=). O erro é lido no momento e multiplicado pela força (kP)
+            cameraOffsetCorrection = vision.getTx(tagAtiva) * VISION_KP;
         }
 
-        // 4. Aplicação Contínua
-        turret.setAngle(anguloBaseTurret - compensacao + cameraOffsetCorrection);
-        hood.setAngleFromDistance(distOdo);
+        // ========================================================
+        // 4. APLICAÇÃO FINAL (Turret & Hood)
+        // ========================================================
+        double anguloFinal = anguloBaseTurret - compensacao + cameraOffsetCorrection;
+
+        turret.setAngle(anguloFinal);
+        hood.setPositionFromDistance(distOdo);
     }
 }

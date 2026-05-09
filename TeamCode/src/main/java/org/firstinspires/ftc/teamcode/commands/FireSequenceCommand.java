@@ -7,28 +7,27 @@ import com.seattlesolvers.solverslib.command.InstantCommand;
 
 import org.firstinspires.ftc.teamcode.subsystems.IndexerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem; // <-- Importação do Shooter
 
 public class FireSequenceCommand extends SequentialCommandGroup {
 
-    // Recebendo o Shooter no construtor
-    public FireSequenceCommand(IndexerSubsystem indexer, IntakeSubsystem intake, ShooterSubsystem shooter) {
+    // Removemos o Shooter daqui! Ele não pertence a esta sequência.
+    public FireSequenceCommand(IndexerSubsystem indexer, IntakeSubsystem intake) {
 
         addCommands(
                 // 1. AÇÃO SIMULTÂNEA: Abre a trava E liga o intake ao mesmo tempo
-                new ParallelCommandGroup(
+                new SequentialCommandGroup(
                         new InstantCommand(() -> indexer.unlock(), indexer),
-                        new InstantCommand(() -> intake.setPower(1.0), intake) // Força máxima pra empurrar a bola
+                        new WaitCommand(400),
+                        new InstantCommand(() -> intake.setPower(1.0), intake)
                 ),
 
-                // 2. TEMPO DE ESPERA: Dá tempo para a bola passar pela trava e ser cuspida pelo shooter
-                new WaitCommand(1200),
+                // 2. TEMPO DE ESPERA: Tempo para a bola ser cuspida (Reduzido para 0.5s)
+                new WaitCommand(2000),
 
-                // 3. AÇÃO SIMULTÂNEA: Fecha a trava, desliga o intake E desliga o shooter!
+                // 3. AÇÃO SIMULTÂNEA: Fecha a trava e desliga o intake (O Shooter continua ligado!)
                 new ParallelCommandGroup(
                         new InstantCommand(() -> indexer.lock(), indexer),
-                        new InstantCommand(() -> intake.setPower(0.0), intake),
-                        new InstantCommand(() -> shooter.stop(), shooter) // <-- Desliga o motor para poupar bateria
+                        new InstantCommand(() -> intake.stop(), intake)
                 )
         );
     }

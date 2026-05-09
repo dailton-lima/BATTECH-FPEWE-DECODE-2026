@@ -5,7 +5,13 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.util.Range;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
+import com.seattlesolvers.solverslib.util.InterpLUT;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+
+import java.util.Arrays;
 
 @Config
 public class ShooterSubsystem extends SubsystemBase {
@@ -13,75 +19,77 @@ public class ShooterSubsystem extends SubsystemBase {
     private final DcMotorEx launchermotor1;
     private final DcMotorEx launchermotor2;
 
-    // Motores goBILDA SEM redução (Bare Motor) possuem exatos 28 ticks por revolução
     private final double TICKS_PER_REV = 28.0;
 
-    // Variáveis expostas no Dashboard
     public static double targetRPM = 0.0;
+    public static double RPM_TOLERANCE = 300.0;
 
-    // Margem de erro (em RPM) aceitável para liberar o tiro.
-    // Em 6000 RPM, flutuar 100 RPM é super normal.
-    public static double RPM_TOLERANCE = 100.0;
+    // =========================================================
+    // A LUT DO SHOOTER: Distância (pol) -> RPM
+    // =========================================================
+    public final InterpLUT shooterLUT = new InterpLUT();
 
-    public ShooterSubsystem(HardwareMap hwMap) {
+    private final Telemetry telemetry;
+
+    public ShooterSubsystem(HardwareMap hwMap, Telemetry telemetry) {
+        this.telemetry = telemetry;
         launchermotor1 = hwMap.get(DcMotorEx.class, "shooterMotor1");
         launchermotor2 = hwMap.get(DcMotorEx.class, "shooterMotor2");
 
-        // O modo RUN_USING_ENCODER liga o PIDF interno de Velocidade do Control/Expansion Hub.
-        // Ele vai forçar a bateria a manter a velocidade constante automaticamente.
         launchermotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         launchermotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // IMPORTANTE: Dependendo da sua mecânica (se os motores estão no mesmo eixo,
-        // ou um de cada lado da bola), um deles precisará girar ao contrário para ajudar o outro.
         launchermotor1.setDirection(DcMotorSimple.Direction.FORWARD);
         launchermotor2.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        // CONFIGURAÇÃO DA TABELA (Exemplo de valores)
+        // Adicione seus pontos aqui: .add(distância, rpm)
+        shooterLUT.add(20.0, 4000.0);
+        shooterLUT.add(40.0, 4150.0);
+        shooterLUT.add(60.0, 4300.0);
+        shooterLUT.add(80.0, 4450.0);
+        shooterLUT.add(100.0, 4600.0);
+        shooterLUT.add(120.0, 4700.0);
+        shooterLUT.createLUT();
+
+        register();
     }
 
     /**
-     * Define a velocidade do Flywheel em Rotações Por Minuto (RPM).
+     * Calcula o RPM ideal baseado na distância e o define como alvo.
      */
-    public void setTargetRPM(double rpm) {
-        targetRPM = rpm;
+    public void setRPMFromDistance(double distanceInches) {
+        double rpm = shooterLUT.get(distanceInches);
+        setTargetRPM(rpm);
+    }
 
-        // O FTC SDK não entende RPM, ele entende "Ticks por Segundo" (TPS).
-        // Fórmula: (RPM / 60) * Ticks_Por_Volta
-        double ticksPerSecond = (rpm / 60.0) * TICKS_PER_REV;
+    public void setTargetRPM(double rpm) {
+        // Trava de segurança: impede RPM negativo ou acima do limite do motor
+        targetRPM = Range.clip(rpm, 0, 6500);
+
+        double ticksPerSecond = (targetRPM / 60.0) * TICKS_PER_REV;
 
         launchermotor1.setVelocity(ticksPerSecond);
         launchermotor2.setVelocity(ticksPerSecond);
     }
 
-    /**
-     * Retorna a velocidade atual lida pelo encoder do motor principal.
-     */
     public double getCurrentRPM() {
-        double currentTPS = launchermotor1.getVelocity();
-        return (currentTPS / TICKS_PER_REV) * 60.0;
+        return (launchermotor1.getVelocity() / TICKS_PER_REV) * 60.0;
     }
 
-    /**
-     * Método super importante para o seu Fluxograma!
-     * Verifica se o motor já acelerou e estabilizou na velocidade certa.
-     */
     public boolean isAtTargetRPM() {
-        // Ignora se o alvo for zero (não queremos atirar desligados)
-        if (targetRPM == 0) return false;
-
-        double erro = Math.abs(getCurrentRPM() - targetRPM);
-        return erro <= RPM_TOLERANCE;
+        if (targetRPM <= 500) return false;
+        return Math.abs(getCurrentRPM() - targetRPM) <= RPM_TOLERANCE;
     }
 
-    /**
-     * Desliga os motores.
-     */
     public void stop() {
         setTargetRPM(0);
     }
 
     @Override
     public void periodic() {
-        // Como estamos usando o setVelocity() do próprio Hub da REV,
-        // não precisamos fazer contas de PID manualmente aqui no periodic!
+        telemetry.addData("Shooter - Alvo (RPM)", targetRPM);
+        telemetry.addData("Shooter - Real (RPM)", getCurrentRPM());
+        telemetry.addData("Shooter - Pronto?", isAtTargetRPM() ? "SIM" : "NAO");
     }
 }

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.teleops;
 
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.command.InstantCommand;
@@ -7,8 +9,10 @@ import com.seattlesolvers.solverslib.command.RunCommand;
 import com.seattlesolvers.solverslib.gamepad.GamepadEx;
 import com.seattlesolvers.solverslib.gamepad.GamepadKeys;
 
+import org.firstinspires.ftc.teamcode.commands.FireSequenceCommand;
 import org.firstinspires.ftc.teamcode.commands.ShootOnMoveCommand;
 import org.firstinspires.ftc.teamcode.commands.TurretTrackCommand;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.*;
 import org.firstinspires.ftc.teamcode.util.FieldConstants;
 
@@ -28,19 +32,26 @@ public class TeleOpCommandBased extends CommandOpMode {
 
     private double driveSpeed = 1.0;
 
+    private Follower follower;
     @Override
     public void initialize() {
         // Inicialização de todos os subsistemas
-        drive = new DriveSubsystem(hardwareMap, hardwareMap.voltageSensor.iterator().next());
-        turret = new TurretSubsystem(hardwareMap);
-        shooter = new ShooterSubsystem(hardwareMap);
+        follower = Constants.createFollower(hardwareMap);
+        Pose startPose = new Pose(134, 8, Math.toRadians(90));
+        follower.setStartingPose(startPose);
+
+        drive = new DriveSubsystem(hardwareMap, hardwareMap.voltageSensor.iterator().next(), follower,telemetry);
+        turret = new TurretSubsystem(hardwareMap, telemetry);
+        shooter = new ShooterSubsystem(hardwareMap, telemetry);
         intake = new IntakeSubsystem(hardwareMap);
         indexer = new IndexerSubsystem(hardwareMap);
-        hood = new HoodSubsystem(hardwareMap);
-        vision = new VisionSubsystem(hardwareMap);
+        hood = new HoodSubsystem(hardwareMap, telemetry);
+        vision = new VisionSubsystem(hardwareMap, telemetry);
 
         piloto1 = new GamepadEx(gamepad1);
         piloto2 = new GamepadEx(gamepad2);
+
+        follower.startTeleOpDrive();
 
         // =========================================================
         // PILOTO 1: DRIVE + INTAKE (O "MOTORISTA")
@@ -49,9 +60,9 @@ public class TeleOpCommandBased extends CommandOpMode {
         // Controle Mecanum Field-Oriented (Sempre ativo)
         drive.setDefaultCommand(new RunCommand(() -> {
             drive.drive(
-                    piloto1.getLeftX(),
-                    -piloto1.getLeftY(),
-                    piloto1.getRightX() * driveSpeed
+                    -piloto1.getLeftX(),
+                    piloto1.getLeftY(),
+                    -piloto1.getRightX() * driveSpeed
             );
         }, drive));
 
@@ -72,7 +83,7 @@ public class TeleOpCommandBased extends CommandOpMode {
                 );
 
         // INTAKE NOS GATILHOS (Analógico = Controle de Força)
-        new RunCommand(() -> {
+        intake.setDefaultCommand(new RunCommand(() -> {
             double coletar = piloto1.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER);
             double expelir = piloto1.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER);
 
@@ -83,7 +94,7 @@ public class TeleOpCommandBased extends CommandOpMode {
             } else {
                 intake.stop();
             }
-        }, intake).schedule();
+        }, intake)); // <--- AGORA É O COMPORTAMENTO PADRÃO
 
 
         // =========================================================
@@ -97,7 +108,8 @@ public class TeleOpCommandBased extends CommandOpMode {
                 .whileHeld(new ShootOnMoveCommand(
                         turret, drive, vision, shooter, indexer, intake, hood,
                         () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
-                        () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL)
+                        () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
+                        telemetry
                 ));
 
         // LB (Toggle): Ligar o Shooter antecipadamente
@@ -114,9 +126,30 @@ public class TeleOpCommandBased extends CommandOpMode {
                 .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(4000))); // Low Basket
 
         // AJUSTE FINO (D-Pad): Mover a Turret manualmente
-        new RunCommand(() -> {
-            if (gamepad2.dpad_left) turret.setAngle(turret.getCurrentAngle() - 1);
-            if (gamepad2.dpad_right) turret.setAngle(turret.getCurrentAngle() + 1);
-        }, turret).schedule();
+//        new RunCommand(() -> {
+//            if (gamepad2.dpad_left) turret.setAngle(turret.getCurrentAngle() - 1);
+//            if (gamepad2.dpad_right) turret.setAngle(turret.getCurrentAngle() + 1);
+//        }, turret).schedule();
+
+        piloto2.getGamepadButton(GamepadKeys.Button.A).
+                whenPressed(new FireSequenceCommand(indexer, intake));
+
+        piloto2.getGamepadButton(GamepadKeys.Button.DPAD_LEFT).
+                whenPressed(new InstantCommand(() -> indexer.unlock()));
+        piloto2.getGamepadButton(GamepadKeys.Button.DPAD_RIGHT).
+                whenPressed(new InstantCommand(() -> indexer.lock()));
+
+        piloto2.getGamepadButton(GamepadKeys.Button.DPAD_UP).
+                whenPressed(new InstantCommand(() -> hood.setPosition(hood.getServoPosition()+0.1)));
+        piloto2.getGamepadButton(GamepadKeys.Button.DPAD_DOWN).
+                whenPressed(new InstantCommand(() -> hood.setPosition(hood.getServoPosition()-0.1)));
+
+
+    }
+
+    @Override
+    public void run() {
+        super.run();
+        telemetry.update();
     }
 }

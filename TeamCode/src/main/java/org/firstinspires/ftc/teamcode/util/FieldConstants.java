@@ -12,9 +12,9 @@ public class FieldConstants {
     // Definição da posição do GOAL com base na aliança
     public static Pose2d getTargetPose(TargetGoal goal) {
         if (activeAlliance == Alliance.BLUE) {
-            return new Pose2d(0, 0, 0); // Coordenada do GOAL Azul
+            return new Pose2d(3.0, 139.0, 0.0); // Coordenada do GOAL Azul
         } else {
-            return new Pose2d(144, 0, 0); // Coordenada do GOAL Vermelho
+            return new Pose2d(139.0, 139.0, 0.0); // Coordenada do GOAL Vermelho
         }
     }
 

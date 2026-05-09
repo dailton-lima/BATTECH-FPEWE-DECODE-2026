@@ -1,36 +1,32 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
-
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.math.Vector;
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-import com.qualcomm.robotcore.hardware.*;
-import com.seattlesolvers.solverslib.command.SubsystemBase; // Importação necessária
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.seattlesolvers.solverslib.command.SubsystemBase;
 import com.seattlesolvers.solverslib.geometry.Pose2d;
 import com.seattlesolvers.solverslib.geometry.Rotation2d;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 
-// Adicionado o extends SubsystemBase para funcionar com os Commands
 public class DriveSubsystem extends SubsystemBase {
 
-    DcMotor fe, fd, te, td;
-    VoltageSensor battery;
+    // APAGAMOS OS DCMOTORS! O PedroPathing já os possui.
+    private final VoltageSensor battery;
+    private final Follower follower;
+    private final Telemetry telemetry;
 
-    public Follower follower;
-
-    public DriveSubsystem(HardwareMap hw, VoltageSensor battery) {
+    public DriveSubsystem(HardwareMap hw, VoltageSensor battery, Follower follower, Telemetry telemetry) {
         this.battery = battery;
+        this.follower = follower;
+        this.telemetry = telemetry;
 
-        fe = hw.get(DcMotor.class, "FE");
-        fd = hw.get(DcMotor.class, "FD");
-        te = hw.get(DcMotor.class, "TE");
-        td = hw.get(DcMotor.class, "TD");
+        // Não há mais hw.get() nem setDirection() aqui.
+        // O Constants.java já resolveu isso na inicialização do Follower.
 
-        fe.setDirection(DcMotorSimple.Direction.REVERSE);
-        te.setDirection(DcMotorSimple.Direction.REVERSE);
+        register();
     }
 
     private double compensar(double p) {
@@ -38,47 +34,40 @@ public class DriveSubsystem extends SubsystemBase {
     }
 
     public void resetHeading() {
-        follower.setHeading(0);
+        // Mantém as coordenadas X e Y de onde o robô está, mas zera a "bússola"
+        follower.setStartingPose(new Pose(follower.getPose().getX(), follower.getPose().getY(), 0));
     }
 
     public void drive(double x, double y, double rot) {
-        // Pega o ângulo para rotacionar os vetores do joystick
-        double botHeading = follower.getPose().getHeading();
+        // Aplica a compensação de bateria nos inputs
+        //double compX = compensar(x);
+        //double compY = compensar(y);
+        //double compRot = compensar(rot);
 
-        // Rotação de vetores para Field-Oriented
-        double rotX = x * Math.cos(-botHeading) - y * Math.sin(-botHeading);
-        double rotY = x * Math.sin(-botHeading) + y * Math.cos(-botHeading);
-
-        // Cinemática Mecanum
-        double feP = rotY + rotX + rot;
-        double fdP = rotY - rotX - rot;
-        double teP = rotY - rotX + rot;
-        double tdP = rotY + rotX - rot;
-
-        // Normalização para não passar de 1.0 mantendo a proporção
-        double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rot), 1);
-
-        fe.setPower(compensar(feP / denominator));
-        fd.setPower(compensar(fdP / denominator));
-        te.setPower(compensar(teP / denominator));
-        td.setPower(compensar(tdP / denominator));
+        // ATENÇÃO: A nova arquitetura exige que você INICIE o modo TeleOp
+        // antes de enviar os vetores. Caso contrário, ele ignora os comandos.
+        // NOVO MÉTODO DO PEDROPATHING 1.0+
+        // Parâmetros: (Forward, Strafe, Turn, FieldCentric?)
+        follower.setTeleOpDrive(y, x, rot, true, 0);
     }
 
     public Pose2d getPose() {
-        // Exemplo de como plugar o PedroPathing
         return new Pose2d(follower.getPose().getX(), follower.getPose().getY(),
                 new Rotation2d(follower.getPose().getHeading()));
     }
 
     public Pose2d getVelocity() {
-        // 1. Pega a velocidade vetorial
         Vector v = follower.getVelocity();
+        return new Pose2d(v.getXComponent(), v.getYComponent(), new Rotation2d(0));
+    }
 
-        // 2. Extrai os componentes X e Y do vetor
-        double velX = v.getXComponent();
-        double velY = v.getYComponent();
+    @Override
+    public void periodic() {
+        // Agora o update() do PedroPathing é o ÚNICO que envia sinais para os motores. Paz no hardware!
+        follower.update();
 
-        // 3. Devolve exatamente o que o ShootOnMove precisa (Pose2d da SolversLib)
-        return new Pose2d(velX, velY, new Rotation2d(0));
+        telemetry.addData("Drive - Posição X", follower.getPose().getX());
+        telemetry.addData("Drive - Posição Y", follower.getPose().getY());
+        telemetry.addData("Drive - Orientação (Graus)", Math.toDegrees(follower.getPose().getHeading()));
     }
 }
