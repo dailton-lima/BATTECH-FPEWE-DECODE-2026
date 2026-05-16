@@ -16,69 +16,82 @@ public class HoodSubsystem extends SubsystemBase {
     private final Servo hoodServo;
     private final Telemetry telemetry;
 
-    // Memória para exibir na telemetria
     private double currentPosition = 0.0;
 
     // =========================================================
-    // A LUT: Distância (Polegadas) -> Posição Física do Servo (0.0 a 1.0)
+    // PONTOS DA LUT (ajuste pelo Dashboard em tempo real)
+    // Distâncias fixas em polegadas, só a posição do servo muda
     // =========================================================
-    public final InterpLUT hoodLUT = new InterpLUT(
-            // Distâncias em Polegadas
-            // 50cm, 1m, 1.5m, 2m, 2.5m, 3m, 3.5m
+    public static double POS_20  = 0.20;
+    public static double POS_40  = 0.35;
+    public static double POS_60  = 0.65;
+    public static double POS_80  = 0.50;
+    public static double POS_100 = 0.45;
+    public static double POS_120 = 0.30;
+    public static double POS_140 = 0.20;
 
-            Arrays.asList(20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0),
+    private double offsetTiro = 0.0;
 
-            // Posição correspondente do Servo (Ajuste fisicamente no Dashboard)
-            // Exemplo: 0.1 (baixo) até 0.8 (alto)
-            Arrays.asList(0.3, 0.6, 0.8, 0.8, 0.7, 0.6, 0.55)
-    );
+    private InterpLUT hoodLUT;
 
     public HoodSubsystem(HardwareMap hwMap, Telemetry telemetry) {
         this.telemetry = telemetry;
         hoodServo = hwMap.get(Servo.class, "hoodServo");
-
-        // Obrigatório para a interpolação matemática funcionar
-        hoodLUT.createLUT();
-
-        // Inicia o capô numa posição neutra/baixa
+        buildLUT();
         setPosition(0.0);
+        register();
     }
 
     /**
-     * O MÉTODO INTELIGENTE:
-     * Recebe a distância da Limelight (Polegadas), consulta a tabela e já move o servo.
+     * Constrói/reconstrói a LUT com os valores atuais das variáveis estáticas.
      */
-    public void setPositionFromDistance(double distanceInches) {
-        // Pega a posição bruta (0 a 1) diretamente da tabela
-        double targetPos = hoodLUT.get(distanceInches);
+    private void buildLUT() {
+        hoodLUT = new InterpLUT(
+                Arrays.asList(20.0,   40.0,   60.0,   80.0,   100.0,   120.0,   140.0),
+                Arrays.asList(POS_20, POS_40, POS_60, POS_80, POS_100, POS_120, POS_140)
+        );
+        hoodLUT.createLUT();
+    }
 
+    /**
+     * Usa a LUT para calcular a posição pela distância.
+     */
+    public void setOffsetTiro(double offset) {
+        this.offsetTiro = offset;
+    }
+
+    public void setPositionFromDistance(double distanceInches) {
+        double targetPos = hoodLUT.get(distanceInches);
         setPosition(targetPos);
     }
 
+
+
     /**
-     * Método direto para mover o servo e registrar na telemetria
+     * Move o servo diretamente para uma posição.
      */
     public void setPosition(double targetPosition) {
-        // O Range.clip garante que se a tabela falhar ou for mal configurada,
-        // o servo não tenta passar do seu limite elétrico, evitando queimas.
         double safePosition = Range.clip(targetPosition, 0.1, 1.0);
-
         this.currentPosition = safePosition;
         hoodServo.setPosition(safePosition);
-        register();
     }
 
     public double getServoPosition() {
         return currentPosition;
     }
 
-    // =========================================================
-    // LOOP DE TELEMETRIA AUTOMÁTICO
-    // =========================================================
     @Override
     public void periodic() {
-        telemetry.addData("Hood - Posição Alvo LUT (0 a 1)", currentPosition);
-        // Descomente abaixo se quiser ver o hardware real, mas costuma ser idêntico ao alvo
-        // telemetry.addData("Hood - Posição Física Real", hoodServo.getPosition());
+        // Reconstrói a LUT a cada loop com os valores atuais do Dashboard
+        buildLUT();
+
+        telemetry.addData("Hood - Posição Atual", currentPosition);
+        telemetry.addData("Hood - POS_20",  POS_20);
+        telemetry.addData("Hood - POS_40",  POS_40);
+        telemetry.addData("Hood - POS_60",  POS_60);
+        telemetry.addData("Hood - POS_80",  POS_80);
+        telemetry.addData("Hood - POS_100", POS_100);
+        telemetry.addData("Hood - POS_120", POS_120);
+        telemetry.addData("Hood - POS_140", POS_140);
     }
 }

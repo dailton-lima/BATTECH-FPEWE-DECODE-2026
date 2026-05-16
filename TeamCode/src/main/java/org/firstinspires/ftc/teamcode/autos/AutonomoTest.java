@@ -1,369 +1,165 @@
 package org.firstinspires.ftc.teamcode.autos;
 
-import com.pedropathing.geometry.BezierCurve;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
-import com.qualcomm.robotcore.hardware.DistanceSensor;
-import com.qualcomm.robotcore.util.ElapsedTime;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
-import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.LLResultTypes;
-import java.util.List;
-
-import com.bylazar.configurables.annotations.Configurable;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-
+import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-@Autonomous
-@Configurable
-public class AutonomoTest extends OpMode {
+import com.seattlesolvers.solverslib.command.CommandOpMode;
+import com.seattlesolvers.solverslib.command.InstantCommand;
+import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
+import com.seattlesolvers.solverslib.command.WaitCommand;
+import com.seattlesolvers.solverslib.command.WaitUntilCommand;
 
-    public Follower follower;
-    private int pathState = 0;
-    private Paths paths;
+import org.firstinspires.ftc.teamcode.commands.FireSequenceCommand;
+import org.firstinspires.ftc.teamcode.commands.TurretTrackCommand;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.subsystems.*;
+import org.firstinspires.ftc.teamcode.util.FieldConstants;
+import org.firstinspires.ftc.teamcode.util.PoseStorage;
 
-    // CAMERA
-    DcMotor cameraMotor;
-    Limelight3A limelight;
-    final int TARGET_ID = 20;
-    final double kP = 0.02;
-    final double kD = 0.004;
-    final double MAX_POWER = 0.6;
+@Autonomous(name = "AUTO - Azul (Sem Gate)", group = "Competição")
+public class AutonomoTest extends CommandOpMode {
 
-    double ultimoErro = 0;
-    double lastTx = 0;
-    long lastSeenTime = 0;
-    boolean scanRight = true;
+    private Follower follower;
 
-    // MECANISMOS
-    DcMotor intake, intake2, launcher;
-    DistanceSensor sensor;
-    VoltageSensor batteryVoltage;
+    private DriveSubsystem drive;
+    private ShooterSubsystem shooter;
+    private TurretSubsystem turret;
+    private IndexerSubsystem indexer;
+    private IntakeSubsystem intake;
+    private HoodSubsystem hood;
+    private VisionSubsystem vision;
 
-    ElapsedTime paradaTimer = new ElapsedTime();
+    // =========================================================
+    // POSES (todas com 180°)
+    // =========================================================
+    private final Pose startPose = new Pose(31.5, 133.5, Math.toRadians(180));
 
-    boolean atirando = false;
-    boolean liberarArtefato = false;
+    private final Pose pose1 = new Pose(54.3, 85.0, Math.toRadians(180)); // Lançar
+    private final Pose pose2 = new Pose(42.6, 85.0, Math.toRadians(180)); // Liga intake
+    private final Pose pose3 = new Pose(18.8, 85.0, Math.toRadians(180)); // Coleta
+    private final Pose pose4 = new Pose(50.7, 85.0, Math.toRadians(180)); // Lançar
+    private final Pose pose5 = new Pose(43.9, 61.8, Math.toRadians(180)); // Liga intake
+    private final Pose pose6 = new Pose(17.7, 61.8, Math.toRadians(180)); // Coleta
+    private final Pose pose7 = new Pose(56.1, 81.6, Math.toRadians(180)); // Lançar
+    private final Pose pose8 = new Pose(48.7, 70.1, Math.toRadians(180)); // Sair da área
 
-    double DISTANCIA_DETECCAO = 5.0;
+    // RPM de lançamento no autônomo
+    private static final double SHOOT_RPM = 3950;
+
+    // Multiplicador do hood
 
     @Override
-    public void init() {
-
+    public void initialize() {
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(21.500, 124.500, Math.toRadians(143)));
-        paths = new Paths(follower);
+        follower.setStartingPose(startPose);
 
-        intake = hardwareMap.get(DcMotor.class, "intake");
-        intake2 = hardwareMap.get(DcMotor.class, "intake2");
-        launcher = hardwareMap.get(DcMotor.class, "launcher");
-        sensor = hardwareMap.get(DistanceSensor.class, "distance");
-        cameraMotor = hardwareMap.get(DcMotor.class, "cameraMotor");
+        drive   = new DriveSubsystem(hardwareMap, hardwareMap.voltageSensor.iterator().next(), follower, telemetry);
+        shooter = new ShooterSubsystem(hardwareMap, telemetry);
+        turret  = new TurretSubsystem(hardwareMap, telemetry);
+        indexer = new IndexerSubsystem(hardwareMap);
+        intake  = new IntakeSubsystem(hardwareMap);
+        hood    = new HoodSubsystem(hardwareMap, telemetry);
+        vision  = new VisionSubsystem(hardwareMap, telemetry);
 
-        cameraMotor.setDirection(DcMotorSimple.Direction.REVERSE);
-        cameraMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        // =========================================================
+        // TORRETA: rastreia o gol com multiplicador de hood corrigido
+        // =========================================================
+        turret.setDefaultCommand(new TurretTrackCommand(
+                turret, drive, vision, shooter, hood,
+                () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
+                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL)
+        ));
 
-        intake2.setDirection(DcMotorSimple.Direction.REVERSE);
+        // =========================================================
+        // SEQUÊNCIA PRINCIPAL DO AUTÔNOMO
+        // =========================================================
+        schedule(new SequentialCommandGroup(
 
-        try {
-            limelight = hardwareMap.get(Limelight3A.class, "limelight");
-            limelight.setPollRateHz(50);
-            limelight.start();
-        } catch (Exception e) {
-            limelight = null;
-        }
+                // --- PATH 1: Ir para posição de lançamento ---
+                new InstantCommand(() -> {
+                    shooter.setTargetRPM(SHOOT_RPM);
+                    followPath(pose1, false);
+                }),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(2000),
 
-        batteryVoltage = hardwareMap.voltageSensor.iterator().next();
+                // --- LANÇAMENTO 1 ---
+                new FireSequenceCommand(indexer, intake, hood),
+                new WaitCommand(500),
 
-        // launcher sempre ligado
-        launcher.setPower(compensar(1.0));
+                // --- PATH 2: Liga intake e avança ---
+                new InstantCommand(() -> {
+                    intake.setPower(1.0);
+                    followPath(pose2, false);
+                }),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1000),
+
+                // --- PATH 3: Coleta enquanto recua ---
+                new InstantCommand(() -> followPath(pose3, false)),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1500),
+                new InstantCommand(() -> intake.stop()),
+
+                // --- PATH 4: Ir para posição de lançamento ---
+                new InstantCommand(() -> followPath(pose4, false)),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1500),
+
+                // --- LANÇAMENTO 2 ---
+                new FireSequenceCommand(indexer, intake, hood),
+                new WaitCommand(500),
+
+                // --- PATH 5: Liga intake e avança para nova área ---
+                new InstantCommand(() -> {
+                    intake.setPower(1.0);
+                    followPath(pose5, false);
+                }),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1000),
+
+                // --- PATH 6: Coleta enquanto recua ---
+                new InstantCommand(() -> followPath(pose6, false)),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1500),
+                new InstantCommand(() -> intake.stop()),
+
+                // --- PATH 7: Ir para posição de lançamento ---
+                new InstantCommand(() -> followPath(pose7, false)),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1500),
+
+                // --- LANÇAMENTO 3 ---
+                new FireSequenceCommand(indexer, intake, hood),
+                new WaitCommand(500),
+
+                // --- PATH 8: Sair da área ---
+                new InstantCommand(() -> {
+                    shooter.stop();
+                    followPath(pose8, true);
+                    turret.setAngle(0);
+                }),
+                new WaitUntilCommand(() -> !follower.isBusy()),
+                new WaitCommand(1500)
+        ));
     }
 
-    private double compensar(double power) {
-        double fator = 13.0 / batteryVoltage.getVoltage();
-        return Math.max(-1, Math.min(1, power * fator));
+    private void followPath(Pose target, boolean isLast) {
+        PathChain chain = follower.pathBuilder()
+                .addPath(new BezierLine(follower.getPose(), target))
+                .setLinearHeadingInterpolation(follower.getPose().getHeading(), target.getHeading())
+                .build();
+        follower.followPath(chain, !isLast);
     }
 
     @Override
-    public void loop() {
+    public void run() {
+        super.run();
+        PoseStorage.storePose(follower.getPose());
         follower.update();
-        updateCamera();
-        autonomousPathUpdate();
-        updateMecanismos();
-    }
-
-    @Override
-    public void stop() {
-        if (follower != null) {
-            // 1. Pega a pose exata onde o robô parou no PedroPathing
-            Pose poseFinal = follower.getPose();
-
-            // 2. Converte para o formato Pose2d da SolversLib e salva na memória estática
-            org.firstinspires.ftc.teamcode.util.PoseStorage.currentPose = new com.seattlesolvers.solverslib.geometry.Pose2d(
-                    poseFinal.getX(),
-                    poseFinal.getY(),
-                    poseFinal.getHeading()
-            );
-        }
-    }
-
-    // ================= CAMERA =================
-
-    public void updateCamera() {
-
-        double rotCamera = 0;
-        double txDegrees = 0;
-        boolean viuTag = false;
-        long now = System.currentTimeMillis();
-
-        if (limelight != null) {
-            LLResult result = limelight.getLatestResult();
-
-            if (result != null && result.isValid()) {
-                List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
-
-                if (fiducials != null) {
-                    for (LLResultTypes.FiducialResult fr : fiducials) {
-                        if (fr.getFiducialId() == TARGET_ID) {
-                            txDegrees = fr.getTargetXDegrees();
-                            viuTag = true;
-                            lastTx = txDegrees;
-                            lastSeenTime = now;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        double giroCamera;
-
-        if (viuTag) {
-            double erro = txDegrees;
-            double derivada = erro - ultimoErro;
-            ultimoErro = erro;
-            giroCamera = (erro * kP) + (derivada * kD);
-            if (Math.abs(erro) < 0.4) giroCamera = 0;
-        } else {
-            long tempoPerdido = now - lastSeenTime;
-            if (tempoPerdido < 700) giroCamera = (lastTx * kP * 0.5);
-            else if (tempoPerdido < 1800) giroCamera = 0;
-            else {
-                double scanPower = 0.12;
-                giroCamera = scanRight ? scanPower : -scanPower;
-                if ((now / 1000) % 3 == 0) scanRight = !scanRight;
-            }
-        }
-
-        giroCamera = Math.max(-MAX_POWER, Math.min(MAX_POWER, giroCamera));
-        cameraMotor.setPower(compensar(giroCamera));
-    }
-
-    // ================= MECANISMOS =================
-
-    public void iniciarDisparo() {
-        atirando = true;
-        liberarArtefato = true;
-    }
-
-    public void pararDisparo() {
-        atirando = false;
-        liberarArtefato = false;
-    }
-
-    public void updateMecanismos() {
-
-        double distancia = sensor.getDistance(
-                org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit.CM);
-
-        boolean temObjeto = distancia < DISTANCIA_DETECCAO;
-
-        intake.setPower(compensar(atirando ? 0.7 : 0.6));
-
-        if (temObjeto && !liberarArtefato)
-            intake2.setPower(0);
-        else
-            intake2.setPower(compensar(atirando ? 0.7 : 0.6));
-    }
-
-    // ================= AUTONOMO =================
-
-    public void autonomousPathUpdate() {
-
-        switch (pathState) {
-
-            case 0:
-                follower.followPath(paths.Path1);
-                pathState = 1;
-                break;
-            case 1:
-                if (!follower.isBusy()) {
-                    iniciarDisparo();
-                    paradaTimer.reset();
-                    pathState = 2;
-                }
-                break;
-            case 2:
-                if (paradaTimer.seconds() >= 3) {
-                    pararDisparo();
-                    follower.followPath(paths.Path2);
-                    pathState = 3;
-                }
-                break;
-
-            case 3:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path3);
-                    pathState = 4;
-                }
-                break;
-            case 4:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path4);
-                    pathState = 5;
-                }
-                break;
-
-            case 5:
-                if (!follower.isBusy()) {
-                    iniciarDisparo();
-                    paradaTimer.reset();
-                    pathState = 6;
-                }
-                break;
-            case 6:
-                if (paradaTimer.seconds() >= 3) {
-                    pararDisparo();
-                    follower.followPath(paths.Path5);
-                    pathState = 7;
-                }
-                break;
-
-            case 7:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path6);
-                    pathState = 8;
-                }
-                break;
-            case 8:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path7);
-                    pathState = 9;
-                }
-                break;
-            case 9:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path8);
-                    pathState = 10;
-                }
-                break;
-            case 10:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path9);
-                    pathState = 11;
-                }
-                break;
-
-            case 11:
-                if (!follower.isBusy()) {
-                    iniciarDisparo();
-                    paradaTimer.reset();
-                    pathState = 12;
-                }
-                break;
-            case 12:
-                if (paradaTimer.seconds() >= 3) {
-                    pararDisparo();
-                    follower.followPath(paths.Path10);
-                    pathState = 13;
-                }
-                break;
-
-            case 13:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path11);
-                    pathState = 14;
-                }
-                break;
-            case 14:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.Path12);
-                    pathState = 15;
-                }
-                break;
-
-            case 15:
-                if (!follower.isBusy()) {
-                    iniciarDisparo();
-                    paradaTimer.reset();
-                    pathState = 16;
-                }
-                break;
-            case 16:
-                if (paradaTimer.seconds() >= 3) {
-                    pararDisparo();
-                    pathState = 17;
-                }
-                break;
-
-            case 17:
-                pararDisparo();
-                break;
-        }
-    }
-
-
-    // ================= PATHS =================
-
-    public static class Paths {
-
-        public PathChain Path1, Path2, Path3, Path4, Path5, Path6,
-                Path7, Path8, Path9, Path10, Path11, Path12;
-
-        public Paths(Follower follower) {
-
-            Path1 = follower.pathBuilder().addPath(new BezierLine(new Pose(21.5, 124.5), new Pose(51.5, 91)))
-                    .setLinearHeadingInterpolation(Math.toRadians(143), Math.toRadians(143)).build();
-
-            Path2 = follower.pathBuilder().addPath(new BezierLine(new Pose(51.5, 91), new Pose(46, 84)))
-                    .setLinearHeadingInterpolation(Math.toRadians(143), Math.toRadians(180)).build();
-
-            Path3 = follower.pathBuilder().addPath(new BezierLine(new Pose(46, 84), new Pose(22.6, 84)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
-
-            Path4 = follower.pathBuilder().addPath(new BezierLine(new Pose(22.6, 84), new Pose(51.5, 91)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(143)).build();
-
-            Path5 = follower.pathBuilder().addPath(new BezierLine(new Pose(51.5, 91), new Pose(60, 60)))
-                    .setLinearHeadingInterpolation(Math.toRadians(143), Math.toRadians(180)).build();
-
-            Path6 = follower.pathBuilder().addPath(new BezierLine(new Pose(60, 60), new Pose(22.7, 60)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
-
-            Path7 = follower.pathBuilder().addPath(new BezierCurve(new Pose(22.7, 60), new Pose(30, 60), new Pose(30, 70)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(90)).build();
-
-            Path8 = follower.pathBuilder().addPath(new BezierLine(new Pose(30, 70), new Pose(18, 70)))
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(90)).build();
-
-            Path9 = follower.pathBuilder().addPath(new BezierLine(new Pose(15, 70), new Pose(51.4, 91)))
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(143)).build();
-
-            Path10 = follower.pathBuilder().addPath(new BezierLine(new Pose(51.4, 91), new Pose(60, 37.5)))
-                    .setLinearHeadingInterpolation(Math.toRadians(141), Math.toRadians(180)).build();
-
-            Path11 = follower.pathBuilder().addPath(new BezierLine(new Pose(60, 37.5), new Pose(22.7, 35.5)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
-
-            Path12 = follower.pathBuilder().addPath(new BezierLine(new Pose(22.7, 35.5), new Pose(51.5, 91)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(144)).build();
-        }
+        telemetry.update();
     }
 }

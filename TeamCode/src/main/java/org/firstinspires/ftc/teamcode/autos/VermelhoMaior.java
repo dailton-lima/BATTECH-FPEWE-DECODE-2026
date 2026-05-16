@@ -118,11 +118,7 @@ public class VermelhoMaior extends OpMode {
             Pose poseFinal = follower.getPose();
 
             // 2. Converte para o formato Pose2d da SolversLib e salva na memória estática
-            org.firstinspires.ftc.teamcode.util.PoseStorage.currentPose = new com.seattlesolvers.solverslib.geometry.Pose2d(
-                    poseFinal.getX(),
-                    poseFinal.getY(),
-                    poseFinal.getHeading()
-            );
+
         }
     }
 

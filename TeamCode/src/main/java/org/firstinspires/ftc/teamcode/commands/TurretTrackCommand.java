@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.commands;
 import com.seattlesolvers.solverslib.command.CommandBase;
 import com.seattlesolvers.solverslib.geometry.Pose2d;
 import org.firstinspires.ftc.teamcode.subsystems.*;
+import org.firstinspires.ftc.teamcode.util.PoseStorage;
 import org.firstinspires.ftc.teamcode.util.ShotSolution;
 
 import java.util.function.Supplier;
@@ -17,10 +18,16 @@ public class TurretTrackCommand extends CommandBase {
     private final Supplier<Pose2d> targetPoseSupplier;
     private final Supplier<Integer> targetTagIdSupplier;
 
+    // Multiplicador de distância para o hood.
+    // TeleOp: 1.0 (sem alteração)
+    // Autônomo: ajuste até o hood bater na posição correta (ex: 0.7)
+
     // Constante Proporcional (kP) para a Câmera
-    // Se a torre tremer, diminua este valor. Se demorar a focar, aumente.
     private static final double VISION_KP = 0.4;
 
+    // Construtor padrão (TeleOp) — multiplier = 1.0, sem mudar nada
+
+    // Construtor com multiplicador (Autônomo)
     public TurretTrackCommand(TurretSubsystem turret, DriveSubsystem drive,
                               VisionSubsystem vision, ShooterSubsystem shooter, HoodSubsystem hood,
                               Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier) {
@@ -37,60 +44,62 @@ public class TurretTrackCommand extends CommandBase {
 
     @Override
     public void execute() {
-        Pose2d poseAtual = drive.getPose();
-        Pose2d velAtual = drive.getVelocity();
-
         Pose2d alvoAtual = targetPoseSupplier.get();
         int tagAtiva = targetTagIdSupplier.get();
 
-        // ========================================================
-        // 1. CÁLCULO DE ODOMETRIA (Distância e Ângulo)
-        // ========================================================
-        double deltaX = alvoAtual.getX() - poseAtual.getX();
-        double deltaY = alvoAtual.getY() - poseAtual.getY();
+        Pose2d poseAtual = drive.getPose();
+        Pose2d velAtual = drive.getVelocity();
+        double headingRad = poseAtual.getHeading();
+        double headingGraus = Math.toDegrees(headingRad);
 
-        double distOdo = Math.hypot(deltaX, deltaY);
-        double anguloGlobalGraus = Math.toDegrees(Math.atan2(deltaY, deltaX));
+        // ====================================================================
+        // NOVO: OFFSET FÍSICO DA TORRE (Translação Cinemática)
+        // ====================================================================
+        // COLOQUE AQUI AS MEDIDAS REAIS COM A FITA MÉTRICA (em polegadas)
+        // Ex: Se o eixo da torre está 5 polegadas para trás do centro do robô -> X = -5.0
+        double OFFSET_X = -2.0;
+        double OFFSET_Y = 0.0;  // 0 se a torre estiver bem no meio do robô na lateral
 
-        // Pega a rotação do chassi (Assume que o getHeading() retorna Radianos, padrão do PedroPathing)
-        // Se o seu getHeading já estiver devolvendo graus, apague o Math.toDegrees()
-        double headingChassiGraus = Math.toDegrees(poseAtual.getHeading());
+        // Calcula onde a torre realmente está no campo naquele momento
+        double torreX = poseAtual.getX() + (OFFSET_X * Math.cos(headingRad) - OFFSET_Y * Math.sin(headingRad));
+        double torreY = poseAtual.getY() + (OFFSET_X * Math.sin(headingRad) + OFFSET_Y * Math.cos(headingRad));
 
-        // Ângulo base que a torre precisa virar
-        double anguloBaseTurret = anguloGlobalGraus - headingChassiGraus;
+        // ====================================================================
+        // 1. DISTÂNCIA 100% ODOMETRIA (Usando as coordenadas da Torre!)
+        // ====================================================================
+        // Note que mudamos 'poseAtual' para 'torreX' e 'torreY'
+        double distOdo = Math.hypot(alvoAtual.getX() - torreX, alvoAtual.getY() - torreY);
 
-        // NORMALIZAÇÃO DE ÂNGULO (O Segredo para não travar!)
-        // Transforma ângulos absurdos (ex: 270) no caminho mais curto (ex: -90)
+        double distFinal = distOdo;
+
+        // ====================================================================
+        // 2. MATEMÁTICA DA TORRE (Usando as coordenadas da Torre!)
+        // ====================================================================
+        double anguloGlobal = Math.toDegrees(Math.atan2(
+                alvoAtual.getY() - torreY,
+                alvoAtual.getX() - torreX
+        ));
+
+        double anguloBaseTurret = anguloGlobal - headingGraus;
+
+        double anguloGlobalRad = Math.atan2(
+                alvoAtual.getY() - torreY,
+                alvoAtual.getX() - torreX
+        );
+
         while (anguloBaseTurret > 180) anguloBaseTurret -= 360;
         while (anguloBaseTurret <= -180) anguloBaseTurret += 360;
 
-        // ========================================================
-        // 2. COMPENSAÇÃO DE VELOCIDADE (Lead Shot)
-        // ========================================================
 
-        double anguloGlobalRad = Math.atan2(
-                alvoAtual.getY() - poseAtual.getY(),
-                alvoAtual.getX() - poseAtual.getX()
-        );
+        // ====================================================================
+        // 4. COMPENSAÇÃO DE VELOCIDADE (LEAD SHOT) E ATUAÇÃO
+        // ====================================================================
+        // O ShotSolution recebe os dados já calculados a partir da torre
+        double compensacaoDinamica = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distFinal, velAtual, anguloGlobalRad);
 
-        double compensacao = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distOdo, velAtual, anguloGlobalRad);
-
-        // ========================================================
-        // 3. AJUSTE FINO PELA CÂMERA
-        // ========================================================
-        double cameraOffsetCorrection = 0; // REINICIA A CADA LOOP (Fim do Bug do Windup)
-
-        if (vision.hasTarget(tagAtiva)) {
-            // Usa APENAS o sinal de Igual (=). O erro é lido no momento e multiplicado pela força (kP)
-            cameraOffsetCorrection = vision.getTx(tagAtiva) * VISION_KP;
-        }
-
-        // ========================================================
-        // 4. APLICAÇÃO FINAL (Turret & Hood)
-        // ========================================================
-        double anguloFinal = anguloBaseTurret - compensacao + cameraOffsetCorrection;
+        double anguloFinal = anguloBaseTurret - compensacaoDinamica;
 
         turret.setAngle(anguloFinal);
-        hood.setPositionFromDistance(distOdo);
+        hood.setPositionFromDistance(distFinal);
     }
 }
