@@ -11,7 +11,7 @@ public class IndexerSubsystem extends SubsystemBase {
     private final Servo gateServo;
 
     // Posições do Servo expostas no Dashboard para você testar
-    public static double POS_LOCKED = 0.8;   // Posição que bloqueia a passagem
+    public static double POS_LOCKED = 0.85;   // Posição que bloqueia a passagem
     public static double POS_UNLOCKED = 0.1; // Posição que libera a peça para o shooter
 
     public IndexerSubsystem(HardwareMap hwMap) {

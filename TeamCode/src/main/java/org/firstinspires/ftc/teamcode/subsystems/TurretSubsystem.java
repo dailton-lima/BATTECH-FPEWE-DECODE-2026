@@ -14,10 +14,10 @@ public class TurretSubsystem extends SubsystemBase {
 
     private final DcMotorEx turretMotor;
 
-    public static double kP = 0.052;
+    public static double kP = 0.054;
     public static double kI = 0.0;
-    public static double kD = 0.0009;
-    public static double kF = 0.05; // Feedforward estático
+    public static double kD = 0.001;
+    public static double kF = 0.06; // Feedforward estático
 
     private final PIDController pidController = new PIDController(kP, kI, kD);
 
@@ -41,7 +41,7 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     public void setAngle(double angle) {
-        this.targetAngle = Range.clip(angle, -90, 90);
+        this.targetAngle = Range.clip(angle, -80, 80);
     }
 
     public double getCurrentAngle() {

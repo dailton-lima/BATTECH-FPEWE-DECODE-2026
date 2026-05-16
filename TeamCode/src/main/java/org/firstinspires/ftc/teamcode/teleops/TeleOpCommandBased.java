@@ -115,15 +115,12 @@ public class TeleOpCommandBased extends CommandOpMode {
         // LB (Toggle): Ligar o Shooter antecipadamente
         piloto2.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
                 .toggleWhenPressed(
-                        new InstantCommand(() -> shooter.setTargetRPM(6000)),
-                        new InstantCommand(() -> shooter.stop())
+                        new InstantCommand(() -> shooter.setTargetRPM(3000))
                 );
 
-        // PRESETS DE DISTÂNCIA
-        piloto2.getGamepadButton(GamepadKeys.Button.Y)
-                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(6000))); // High Basket
-        piloto2.getGamepadButton(GamepadKeys.Button.X)
-                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(4000))); // Low Basket
+        piloto2.getGamepadButton(GamepadKeys.Button.B).
+                whenPressed(new InstantCommand(() -> shooter.stop()));
+
 
         // AJUSTE FINO (D-Pad): Mover a Turret manualmente
 //        new RunCommand(() -> {
@@ -131,8 +128,7 @@ public class TeleOpCommandBased extends CommandOpMode {
 //            if (gamepad2.dpad_right) turret.setAngle(turret.getCurrentAngle() + 1);
 //        }, turret).schedule();
 
-        piloto2.getGamepadButton(GamepadKeys.Button.A).
-                whenPressed(new FireSequenceCommand(indexer, intake));
+
 
         piloto2.getGamepadButton(GamepadKeys.Button.DPAD_LEFT).
                 whenPressed(new InstantCommand(() -> indexer.unlock()));

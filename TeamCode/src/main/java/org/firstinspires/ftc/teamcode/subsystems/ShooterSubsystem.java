@@ -44,12 +44,14 @@ public class ShooterSubsystem extends SubsystemBase {
 
         // CONFIGURAÇÃO DA TABELA (Exemplo de valores)
         // Adicione seus pontos aqui: .add(distância, rpm)
-        shooterLUT.add(20.0, 4000.0);
-        shooterLUT.add(40.0, 4150.0);
-        shooterLUT.add(60.0, 4300.0);
-        shooterLUT.add(80.0, 4450.0);
-        shooterLUT.add(100.0, 4600.0);
-        shooterLUT.add(120.0, 4700.0);
+        shooterLUT.add(20.0, 3200.0);
+        shooterLUT.add(40.0, 3600.0);
+        shooterLUT.add(60.0, 3750.0);
+        shooterLUT.add(80.0, 3900.0);
+        shooterLUT.add(100.0, 4050.0);
+        shooterLUT.add(120.0, 4200.0);
+        shooterLUT.add(140.0, 4350.0);
+        shooterLUT.add(160.0, 4500.0);
         shooterLUT.createLUT();
 
         register();
@@ -65,13 +67,14 @@ public class ShooterSubsystem extends SubsystemBase {
 
     public void setTargetRPM(double rpm) {
         // Trava de segurança: impede RPM negativo ou acima do limite do motor
-        targetRPM = Range.clip(rpm, 0, 6500);
+        targetRPM = Range.clip(rpm, 0, 6000);
 
         double ticksPerSecond = (targetRPM / 60.0) * TICKS_PER_REV;
 
         launchermotor1.setVelocity(ticksPerSecond);
         launchermotor2.setVelocity(ticksPerSecond);
     }
+
 
     public double getCurrentRPM() {
         return (launchermotor1.getVelocity() / TICKS_PER_REV) * 60.0;
@@ -80,6 +83,11 @@ public class ShooterSubsystem extends SubsystemBase {
     public boolean isAtTargetRPM() {
         if (targetRPM <= 500) return false;
         return Math.abs(getCurrentRPM() - targetRPM) <= RPM_TOLERANCE;
+    }
+
+    public void setPIDF(double p, double i, double d, double f) {
+        launchermotor1.setVelocityPIDFCoefficients(p, i, d, f);
+        launchermotor2.setVelocityPIDFCoefficients(p, i, d, f);
     }
 
     public void stop() {

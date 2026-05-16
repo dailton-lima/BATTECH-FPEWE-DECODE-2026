@@ -19,6 +19,8 @@ public class HoodSubsystem extends SubsystemBase {
     // Memória para exibir na telemetria
     private double currentPosition = 0.0;
 
+    private double offsetTiro = 0.0;
+
     // =========================================================
     // A LUT: Distância (Polegadas) -> Posição Física do Servo (0.0 a 1.0)
     // =========================================================
@@ -26,11 +28,11 @@ public class HoodSubsystem extends SubsystemBase {
             // Distâncias em Polegadas
             // 50cm, 1m, 1.5m, 2m, 2.5m, 3m, 3.5m
 
-            Arrays.asList(20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0),
+            Arrays.asList(20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0),
 
             // Posição correspondente do Servo (Ajuste fisicamente no Dashboard)
             // Exemplo: 0.1 (baixo) até 0.8 (alto)
-            Arrays.asList(0.3, 0.6, 0.8, 0.8, 0.7, 0.6, 0.55)
+            Arrays.asList(0.2, 0.4, 0.55, 0.8, 0.85, 0.8, 0.7, 0.65)
     );
 
     public HoodSubsystem(HardwareMap hwMap, Telemetry telemetry) {
@@ -48,9 +50,13 @@ public class HoodSubsystem extends SubsystemBase {
      * O MÉTODO INTELIGENTE:
      * Recebe a distância da Limelight (Polegadas), consulta a tabela e já move o servo.
      */
+
+    public void setOffsetTiro(double offset) {
+        this.offsetTiro = offset;
+    }
     public void setPositionFromDistance(double distanceInches) {
-        // Pega a posição bruta (0 a 1) diretamente da tabela
-        double targetPos = hoodLUT.get(distanceInches);
+        // Pega a posição bruta da tabela e SOMA o nosso desvio temporário
+        double targetPos = hoodLUT.get(distanceInches) + offsetTiro;
 
         setPosition(targetPos);
     }

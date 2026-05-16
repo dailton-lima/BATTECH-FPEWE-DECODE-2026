@@ -5,7 +5,7 @@ import com.seattlesolvers.solverslib.geometry.Pose2d;
 public class ShotSolution {
     public static final double WHEEL_DIAMETER = 3.0; // Polegadas
     // A eficiência geralmente cai um pouco em altas velocidades, 0.5 a 0.7 é um bom palpite empírico
-    public static final double EFFICIENCY = 0.5;
+    public static final double EFFICIENCY = 0.7;
 
     /**
      * @param currentRPM RPM atual lido pelo encoder do motor.
