@@ -25,8 +25,12 @@ public class TurretSubsystem extends SubsystemBase {
 
     private double targetAngle = 0.0;
 
-    // NOVA VARIÁVEL: Guarda a posição herdada do Autônomo
+    // =========================================================
+    // VARIÁVEIS DA TRANSIÇÃO E CONTROLE
+    // =========================================================
     private double teleopStartAngle = 0.0;
+    private boolean usingAutoAngle = false;    // Evita o bug do "Offset Duplo"
+    private boolean forcarZeroNoFinal = false; // A trava mecânica invisível
 
     private final double TICKS_PER_REV_MOTOR = 537.7;
     private final double EXTERNAL_GEAR_RATIO = 140.0 / 30.0;
@@ -46,20 +50,41 @@ public class TurretSubsystem extends SubsystemBase {
 
     /**
      * NOVO MÉTODO: Define a posição inicial vinda do PoseStorage
-     * Atualiza o desvio da telemetria e o targetAngle para impedir que o PID atue.
      */
     public void loadStartingAngle(double storedAngle) {
         this.teleopStartAngle = storedAngle;
         this.targetAngle = Range.clip(storedAngle, -90, 90);
+        this.usingAutoAngle = true; // Avisa à matemática que o valor foi herdado!
+    }
+
+    /**
+     * NOVO MÉTODO: Ativa a trava invisível para o final do Autônomo
+     */
+    public void travarNoZero() {
+        this.forcarZeroNoFinal = true;
+        this.targetAngle = 0.0;
     }
 
     public void setAngle(double angle) {
-        this.targetAngle = Range.clip(angle, -90, 90);
+        if (forcarZeroNoFinal) {
+            // Se a trava estiver ativa, esmaga ordens externas e mantém em 0
+            this.targetAngle = 0.0;
+        } else {
+            this.targetAngle = Range.clip(angle, -90, 90);
+        }
     }
 
     public double getCurrentAngle() {
-        // O valor real agora é a leitura do motor zerado + offset + o ângulo guardado do autônomo
-        return (turretMotor.getCurrentPosition() / TICKS_PER_DEGREE) - ANGLE_OFFSET + teleopStartAngle;
+        double rawAngle = turretMotor.getCurrentPosition() / TICKS_PER_DEGREE;
+
+        if (usingAutoAngle) {
+            // O valor do autônomo JÁ TEM o offset físico embutido.
+            // Basta somar ao encoder zerado.
+            return rawAngle + teleopStartAngle;
+        } else {
+            // Se ligou o robô direto no TeleOp, usa a matemática padrão com offset.
+            return rawAngle - ANGLE_OFFSET;
+        }
     }
 
     @Override
@@ -77,15 +102,17 @@ public class TurretSubsystem extends SubsystemBase {
         double power = pidOutput + ffOutput;
         double safePower = Range.clip(power, -0.6, 0.6);
 
+        // Salva o ângulo continuamente na memória estática
         PoseStorage.storeTurretAngle(getCurrentAngle());
 
         turretMotor.setPower(safePower);
 
         telemetry.addData("Turret - Ângulo Alvo", targetAngle);
         telemetry.addData("Turret - Ângulo Real", getCurrentAngle());
-        telemetry.addData("Turret - Offset Físico", ANGLE_OFFSET);
-        telemetry.addData("Turret - Offset Autônomo", teleopStartAngle);
         telemetry.addData("Turret - Erro (Graus)", error);
-        telemetry.addData("Turret - Limite de Segurança", (getCurrentAngle() >= 80 || getCurrentAngle() <= -80) ? "ATIVO" : "Livre");
+
+        // Linhas de Debug para ajudar no painel
+        telemetry.addData("Turret - Herdado (Auto)?", usingAutoAngle ? "SIM (" + teleopStartAngle + ")" : "NAO");
+        telemetry.addData("Turret - Trava do Zero?", forcarZeroNoFinal ? "ATIVA" : "Desligada");
     }
 }

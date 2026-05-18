@@ -115,22 +115,21 @@ public class TeleOpCommandBased extends CommandOpMode {
                         () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
                         () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
                         telemetry
-                ))
-                .whenReleased(new InstantCommand(() -> shooter.stop()));
+                ));
 
-        piloto2.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
-                .toggleWhenPressed(
-                        new InstantCommand(() -> shooter.setTargetRPM(6000)),
-                        new InstantCommand(() -> shooter.stop())
-                );
-
-        piloto2.getGamepadButton(GamepadKeys.Button.Y)
-                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(4000)));
-        piloto2.getGamepadButton(GamepadKeys.Button.X)
-                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(3500)));
-
-        piloto2.getGamepadButton(GamepadKeys.Button.A)
-                .whenPressed(new FireSequenceCommand(indexer, intake, hood));
+//        piloto2.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
+//                .toggleWhenPressed(
+//                        new InstantCommand(() -> shooter.setTargetRPM(6000)),
+//                        new InstantCommand(() -> shooter.stop())
+//                );
+//
+//        piloto2.getGamepadButton(GamepadKeys.Button.Y)
+//                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(4000)));
+//        piloto2.getGamepadButton(GamepadKeys.Button.X)
+//                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(3500)));
+//
+//        piloto2.getGamepadButton(GamepadKeys.Button.A)
+//                .whenPressed(new FireSequenceCommand(indexer, intake, hood));
 
         piloto2.getGamepadButton(GamepadKeys.Button.DPAD_LEFT)
                 .whenPressed(new InstantCommand(() -> indexer.unlock()));

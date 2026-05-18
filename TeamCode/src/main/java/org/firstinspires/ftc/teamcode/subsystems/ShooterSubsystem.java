@@ -63,6 +63,8 @@ public class ShooterSubsystem extends SubsystemBase {
         launchermotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         launchermotor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
+        targetRPM = 0.0;
+
         // =========================================================
         // TABELA DE DISTÂNCIA -> RPM
         // =========================================================

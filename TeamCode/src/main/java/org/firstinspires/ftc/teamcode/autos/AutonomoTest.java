@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.command.InstantCommand;
+import com.seattlesolvers.solverslib.command.RunCommand;
 import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 import com.seattlesolvers.solverslib.command.WaitCommand;
 import com.seattlesolvers.solverslib.command.WaitUntilCommand;
@@ -64,9 +65,8 @@ public class AutonomoTest extends CommandOpMode {
         hood    = new HoodSubsystem(hardwareMap, telemetry);
         vision  = new VisionSubsystem(hardwareMap, telemetry);
 
-        // =========================================================
-        // TORRETA: rastreia o gol com multiplicador de hood corrigido
-        // =========================================================
+        shooter.setTargetRPM(0);
+
         turret.setDefaultCommand(new TurretTrackCommand(
                 turret, drive, vision, shooter, hood,
                 () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
@@ -84,11 +84,11 @@ public class AutonomoTest extends CommandOpMode {
                     followPath(pose1, false);
                 }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(2000),
+                new WaitCommand(1000),
 
                 // --- LANÇAMENTO 1 ---
                 new FireSequenceCommand(indexer, intake, hood),
-                new WaitCommand(500),
+                new WaitCommand(200),
 
                 // --- PATH 2: Liga intake e avança ---
                 new InstantCommand(() -> {
@@ -96,22 +96,22 @@ public class AutonomoTest extends CommandOpMode {
                     followPath(pose2, false);
                 }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1000),
+                new WaitCommand(200),
 
                 // --- PATH 3: Coleta enquanto recua ---
                 new InstantCommand(() -> followPath(pose3, false)),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1500),
+                new WaitCommand(1000),
                 new InstantCommand(() -> intake.stop()),
 
                 // --- PATH 4: Ir para posição de lançamento ---
                 new InstantCommand(() -> followPath(pose4, false)),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1500),
+                new WaitCommand(500),
 
                 // --- LANÇAMENTO 2 ---
                 new FireSequenceCommand(indexer, intake, hood),
-                new WaitCommand(500),
+                new WaitCommand(200),
 
                 // --- PATH 5: Liga intake e avança para nova área ---
                 new InstantCommand(() -> {
@@ -119,33 +119,36 @@ public class AutonomoTest extends CommandOpMode {
                     followPath(pose5, false);
                 }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1000),
+                new WaitCommand(500),
 
                 // --- PATH 6: Coleta enquanto recua ---
                 new InstantCommand(() -> followPath(pose6, false)),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1500),
+                new WaitCommand(1000),
                 new InstantCommand(() -> intake.stop()),
 
                 // --- PATH 7: Ir para posição de lançamento ---
                 new InstantCommand(() -> followPath(pose7, false)),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1500),
+                new WaitCommand(500),
 
                 // --- LANÇAMENTO 3 ---
                 new FireSequenceCommand(indexer, intake, hood),
-                new WaitCommand(500),
+                new WaitCommand(200),
 
                 // --- PATH 8: Sair da área ---
                 new InstantCommand(() -> {
                     shooter.stop();
                     followPath(pose8, true);
-                    turret.setAngle(0);
                 }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1500)
+                new WaitCommand(1500),
+
+                new InstantCommand(() -> turret.travarNoZero())
+
         ));
     }
+
 
     private void followPath(Pose target, boolean isLast) {
         PathChain chain = follower.pathBuilder()
@@ -158,8 +161,12 @@ public class AutonomoTest extends CommandOpMode {
     @Override
     public void run() {
         super.run();
-        PoseStorage.storePose(follower.getPose());
+
         follower.update();
         telemetry.update();
+
+        // Salva a posição continuamente para quando o TeleOp assumir
+        PoseStorage.storePose(follower.getPose());
+        PoseStorage.storeTurretAngle(turret.getCurrentAngle());
     }
 }
