@@ -27,8 +27,8 @@ import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.util.FieldConstants;
 import org.firstinspires.ftc.teamcode.util.PoseStorage;
 
-@Autonomous(name = "AUTO - Azul 15 GATE", group = "Competição AZUL")
-public class AUTO_15_AZUL extends CommandOpMode {
+@Autonomous(name = "AUTO - VERMELHO 15 GATE", group = "Competição VERMELHO")
+public class AUTO_15_VERMELHO extends CommandOpMode {
 
     private Follower follower;
 
@@ -43,38 +43,38 @@ public class AUTO_15_AZUL extends CommandOpMode {
     // =========================================================
     // POSES SEQUENCIAIS (Destinos de cada Path)
     // =========================================================
-    private final Pose startPose = new Pose(31.5, 133.5, Math.toRadians(180));
+    private final Pose startPose = new Pose(31.5, 133.5, Math.toRadians(0));
 
-    private final Pose pose1  = new Pose(54.3, 85.0, Math.toRadians(180)); // Lançar 1
-    private final Pose pose2  = new Pose(42.5, 61.0, Math.toRadians(180)); // Desce para coleta
-    private final Pose pose3  = new Pose(15.0, 61.0, Math.toRadians(180)); // Coleta 1
-    private final Pose pose4  = new Pose(54.0, 82.0, Math.toRadians(180)); // Lançar 2
-    private final Pose pose5  = new Pose(16.2, 62.0, Math.toRadians(160)); // Ida ao Gate
-    private final Pose pose6  = new Pose(9.5,  60.0, Math.toRadians(160)); // Coleta fina Gate
+    private final Pose pose1  = new Pose(142.0-54.3, 85.0, Math.toRadians(0)); // Lançar 1
+    private final Pose pose2  = new Pose(142.0-42.5, 61.0, Math.toRadians(0)); // Desce para coleta
+    private final Pose pose3  = new Pose(142.0-15.0, 61.0, Math.toRadians(0)); // Coleta 1
+    private final Pose pose4  = new Pose(142.0-54.0, 82.0, Math.toRadians(0)); // Lançar 2
+    private final Pose pose5  = new Pose(142.0-16.2, 62.0, Math.toRadians(20)); // Ida ao Gate
+    private final Pose pose6  = new Pose(142.0-9.5,  60.0, Math.toRadians(20)); // Coleta fina Gate
 
     // Ajuste milimétrico de início do Path 7
-    private final Pose poseAjuste7 = new Pose(9.2, 60.0, Math.toRadians(160));
-    private final Pose pose7  = new Pose(54.0, 82.0, Math.toRadians(180)); // Lançar 3
+    private final Pose poseAjuste7 = new Pose(142.0-9.2, 60.0, Math.toRadians(20));
+    private final Pose pose7  = new Pose(142.0-54.0, 82.0, Math.toRadians(0)); // Lançar 3
 
-    private final Pose pose8  = new Pose(16.2, 62.0, Math.toRadians(160)); // Volta ao Gate
-    private final Pose pose9  = new Pose(9.5,  60.0, Math.toRadians(160)); // Coleta fina Gate 2
+    private final Pose pose8  = new Pose(142.0-16.2, 62.0, Math.toRadians(20)); // Volta ao Gate
+    private final Pose pose9  = new Pose(142.0-9.5,  60.0, Math.toRadians(20)); // Coleta fina Gate 2
 
     // Ajuste milimétrico de início do Path 10
-    private final Pose poseAjuste10 = new Pose(9.2, 60.0, Math.toRadians(160));
-    private final Pose pose10 = new Pose(54.0, 84.0, Math.toRadians(180)); // Lançar 4
+    private final Pose poseAjuste10 = new Pose(142.0-9.2, 60.0, Math.toRadians(20));
+    private final Pose pose10 = new Pose(142.0-54.0, 84.0, Math.toRadians(0)); // Lançar 4
 
-    private final Pose pose11 = new Pose(16.0, 85.0, Math.toRadians(180)); // Coleta Longe
+    private final Pose pose11 = new Pose(142.0-16.0, 85.0, Math.toRadians(0)); // Coleta Longe
 
     // Ajuste milimétrico de início do Path 12
-    private final Pose poseAjuste12 = new Pose(16.0, 84.0, Math.toRadians(180));
-    private final Pose pose12 = new Pose(54.0, 85.0, Math.toRadians(180)); // Lançar 5
+    private final Pose poseAjuste12 = new Pose(142.0-16.0, 84.0, Math.toRadians(0));
+    private final Pose pose12 = new Pose(142.0-54.0, 85.0, Math.toRadians(0)); // Lançar 5
 
-    private final Pose pose13 = new Pose(18.0, 85.0, Math.toRadians(180)); // Estacionar
+    private final Pose pose13 = new Pose(142.0-18.0, 85.0, Math.toRadians(0)); // Estacionar
 
     // Pontos de Controle (Curvas de Bézier)
-    private final Pose control1 = new Pose(38.0, 68.0);
-    private final Pose control2 = new Pose(35.0, 62.0);
-    private final Pose control3 = new Pose(42.0, 62.0);
+    private final Pose control1 = new Pose(142.0-38.0, 68.0);
+    private final Pose control2 = new Pose(142.0-35.0, 62.0);
+    private final Pose control3 = new Pose(142.0-42.0, 62.0);
 
     // =========================================================
     // VARIÁVEIS DE TRAJETÓRIA (PathChains)
@@ -83,7 +83,7 @@ public class AUTO_15_AZUL extends CommandOpMode {
 
     @Override
     public void initialize() {
-        FieldConstants.activeAlliance = FieldConstants.Alliance.BLUE;
+        FieldConstants.activeAlliance = FieldConstants.Alliance.RED;
 
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);

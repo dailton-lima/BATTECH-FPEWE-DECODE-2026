@@ -11,7 +11,6 @@ import com.seattlesolvers.solverslib.command.ParallelDeadlineGroup;
 import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 import com.seattlesolvers.solverslib.command.WaitCommand;
 import com.seattlesolvers.solverslib.command.WaitUntilCommand;
-import com.seattlesolvers.solverslib.geometry.Pose2d;
 
 import org.firstinspires.ftc.teamcode.commands.FireSequenceCommand;
 import org.firstinspires.ftc.teamcode.commands.TurretTrackCommand;
@@ -26,8 +25,8 @@ import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.util.FieldConstants;
 import org.firstinspires.ftc.teamcode.util.PoseStorage;
 
-@Autonomous(name = "AUTO - AZUL LONGE", group = "Competição AZUL")
-public class AUTO_LONGE_AZUL extends CommandOpMode {
+@Autonomous(name = "AUTO - AZUL LONGE", group = "Competição VERMELHO")
+public class AUTO_LONGE_VERMELHO extends CommandOpMode {
 
     private Follower follower;
 
@@ -42,21 +41,21 @@ public class AUTO_LONGE_AZUL extends CommandOpMode {
     // =========================================================
     // POSES SEQUENCIAIS (Destinos de cada Path)
     // =========================================================
-    private final Pose startPose = new Pose(55.5, 7.8, Math.toRadians(180));
+    private final Pose startPose = new Pose(142.0-55.5, 7.8, Math.toRadians(0));
 
     // Ações mapeadas para as 6 coordenadas do seu buildPaths
-    private final Pose pose1 = new Pose(56.0, 36.0, Math.toRadians(180)); // Lançar 1
-    private final Pose pose2 = new Pose(16.0, 36.0, Math.toRadians(180)); // Desce para coletar
-    private final Pose pose3 = new Pose(56.0, 11.0, Math.toRadians(180)); // Recua e Lança 2
-    private final Pose pose4 = new Pose(12.0, 11.0, Math.toRadians(180)); // Vai ao fundo coletar
-    private final Pose pose5 = new Pose(12.5, 11.0, Math.toRadians(190)); // Volta e Lança 3
-    private final Pose pose6 = new Pose(12.5, 12.0, Math.toRadians(190)); // Ajuste fino / Estacionar
-    private final Pose pose7 = new Pose(12.5, 13.0, Math.toRadians(170)); // Volta e Lança 3
-    private final Pose pose8 = new Pose(12.5, 11.0, Math.toRadians(180)); // Ajuste fino / Estacionar
-    private final Pose pose9 = new Pose(56.0, 11.0, Math.toRadians(180)); // Volta e Lança 3
-    private final Pose pose10 = new Pose(12.5, 11.0, Math.toRadians(180)); // Ajuste fino / Estacionar
-    private final Pose pose11 = new Pose(56.0, 11.0, Math.toRadians(180)); // Volta e Lança 3
-    private final Pose pose12 = new Pose(36.0, 11.0, Math.toRadians(180)); // Ajuste fino / Estacionar
+    private final Pose pose1 = new Pose(142.0-56.0, 36.0, Math.toRadians(0)); // Lançar 1
+    private final Pose pose2 = new Pose(142.0-16.0, 36.0, Math.toRadians(0)); // Desce para coletar
+    private final Pose pose3 = new Pose(142.0-56.0, 11.0, Math.toRadians(0)); // Recua e Lança 2
+    private final Pose pose4 = new Pose(142.0-12.0, 11.0, Math.toRadians(0)); // Vai ao fundo coletar
+    private final Pose pose5 = new Pose(142.0-12.5, 11.0, Math.toRadians(-10)); // Volta e Lança 3
+    private final Pose pose6 = new Pose(142.0-12.5, 12.0, Math.toRadians(10)); // Ajuste fino / Estacionar
+    private final Pose pose7 = new Pose(142.0-12.5, 13.0, Math.toRadians(-10)); // Volta e Lança 3
+    private final Pose pose8 = new Pose(142.0-12.5, 11.0, Math.toRadians(0)); // Ajuste fino / Estacionar
+    private final Pose pose9 = new Pose(142.0-56.0, 11.0, Math.toRadians(0)); // Volta e Lança 3
+    private final Pose pose10 = new Pose(142.0-12.5, 11.0, Math.toRadians(0)); // Ajuste fino / Estacionar
+    private final Pose pose11 = new Pose(142.0-56.0, 11.0, Math.toRadians(0)); // Volta e Lança 3
+    private final Pose pose12 = new Pose(142.0-36.0, 11.0, Math.toRadians(0)); // Ajuste fino / Estacionar
 
     // =========================================================
     // VARIÁVEIS DE TRAJETÓRIA (PathChains)
@@ -65,7 +64,7 @@ public class AUTO_LONGE_AZUL extends CommandOpMode {
 
     @Override
     public void initialize() {
-        FieldConstants.activeAlliance = FieldConstants.Alliance.BLUE;
+        FieldConstants.activeAlliance = FieldConstants.Alliance.RED;
 
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startPose);
