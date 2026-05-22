@@ -7,6 +7,7 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.command.InstantCommand;
+import com.seattlesolvers.solverslib.command.ParallelDeadlineGroup;
 import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 import com.seattlesolvers.solverslib.command.WaitCommand;
 import com.seattlesolvers.solverslib.command.WaitUntilCommand;
@@ -78,12 +79,7 @@ public class AUTO_LONGE_AZUL extends CommandOpMode {
         hood    = new HoodSubsystem(hardwareMap, telemetry);
         vision  = new VisionSubsystem(hardwareMap, telemetry);
 
-        turret.setDefaultCommand(new TurretTrackCommand(
-                turret, drive, vision, hood,
-                () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
-                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
-                () -> shooter.getCurrentRPM()
-        ));
+
 
         shooter.stop();
 
@@ -91,118 +87,128 @@ public class AUTO_LONGE_AZUL extends CommandOpMode {
         // SEQUÊNCIA PRINCIPAL DO AUTÔNOMO
         // =========================================================
         schedule(new SequentialCommandGroup(
+                new ParallelDeadlineGroup(
+                        new TurretTrackCommand(
+                                turret, drive, vision, hood,
+                                () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
+                                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
+                                () -> shooter.getCurrentRPM()
+                        ),
+                        new SequentialCommandGroup(
+                                // --- Lançar ---
+                                new InstantCommand(() -> {
+                                    shooter.setTargetRPM(4550);
+                                }),
+                                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
+                                new WaitCommand(200),
+                                new FireSequenceCommand(indexer, intake, hood),
 
-                // --- Lançar ---
-                new InstantCommand(() -> {
-                    shooter.setTargetRPM(4550);
-                }),
-                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
-                new WaitCommand(200),
-                new FireSequenceCommand(indexer, intake, hood),
+                                // --- PATH 1: Ir para posição de coleta ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path1, false);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
 
-                // --- PATH 1: Ir para posição de coleta ---
-                new InstantCommand(() -> {
-                    follower.followPath(path1, false);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                                // --- PATH 2: Coletar ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path2, false);
+                                    intake.setPower(1.0);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
+                                new WaitCommand(300),
+                                new InstantCommand(() -> intake.stop()),
 
-                // --- PATH 2: Coletar ---
-                new InstantCommand(() -> {
-                    follower.followPath(path2, false);
-                    intake.setPower(1.0);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(300),
-                new InstantCommand(() -> intake.stop()),
+                                // --- PATH 3: Ir para posição de lançamento ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path3, false);
+                                    shooter.setTargetRPM(4550);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
+                                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
+                                new WaitCommand(200),
+                                new FireSequenceCommand(indexer, intake, hood),
 
-                // --- PATH 3: Ir para posição de lançamento ---
-                new InstantCommand(() -> {
-                    follower.followPath(path3, false);
-                    shooter.setTargetRPM(4550);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
-                new WaitCommand(200),
-                new FireSequenceCommand(indexer, intake, hood),
+                                // --- PATH 4: Vai fundo para o Gate (Coleta) ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path4, false);
 
-                // --- PATH 4: Vai fundo para o Gate (Coleta) ---
-                new InstantCommand(() -> {
-                    follower.followPath(path4, false);
+                                }),
+                                new WaitCommand(400),
+                                new InstantCommand(() -> intake.setPower(1.0)),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
 
-                }),
-                new WaitCommand(400),
-                new InstantCommand(() -> intake.setPower(1.0)),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                                // --- PATH 5: Vai fundo para o Gate (Coleta) ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path5, false);
 
-                // --- PATH 5: Vai fundo para o Gate (Coleta) ---
-                new InstantCommand(() -> {
-                    follower.followPath(path5, false);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
 
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                                // --- PATH 6: Vai fundo para o Gate (Coleta) ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path6, false);
 
-                // --- PATH 6: Vai fundo para o Gate (Coleta) ---
-                new InstantCommand(() -> {
-                    follower.followPath(path6, false);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
 
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                                // --- PATH 7: Vai fundo para o Gate (Coleta) ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path7, false);
 
-                // --- PATH 7: Vai fundo para o Gate (Coleta) ---
-                new InstantCommand(() -> {
-                    follower.followPath(path7, false);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
 
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                                // --- PATH 8: Vai fundo para o Gate (Coleta) ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path8, false);
 
-                // --- PATH 8: Vai fundo para o Gate (Coleta) ---
-                new InstantCommand(() -> {
-                    follower.followPath(path8, false);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
+                                new WaitCommand(200),
+                                new InstantCommand(() -> intake.stop()),
 
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(200),
-                new InstantCommand(() -> intake.stop()),
+                                // --- PATH 9: Retorna do Gate para Lançamento 3 ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path9, false);
+                                    shooter.setTargetRPM(4550);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
+                                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
+                                new WaitCommand(200),
+                                new FireSequenceCommand(indexer, intake, hood),
 
-                // --- PATH 9: Retorna do Gate para Lançamento 3 ---
-                new InstantCommand(() -> {
-                    follower.followPath(path9, false);
-                    shooter.setTargetRPM(4550);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
-                new WaitCommand(200),
-                new FireSequenceCommand(indexer, intake, hood),
+                                // --- PATH 9: Retorna do Gate para Lançamento 3 ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path10, false);
+                                    intake.setPower(1.0);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
+                                new WaitCommand(300),
+                                new InstantCommand(() -> intake.stop()),
 
-                // --- PATH 9: Retorna do Gate para Lançamento 3 ---
-                new InstantCommand(() -> {
-                    follower.followPath(path10, false);
-                    intake.setPower(1.0);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(300),
-                new InstantCommand(() -> intake.stop()),
+                                // --- PATH 3: Ir para posição de lançamento ---
+                                new InstantCommand(() -> {
+                                    follower.followPath(path11, false);
+                                    shooter.setTargetRPM(4550);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
+                                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
+                                new WaitCommand(200),
+                                new FireSequenceCommand(indexer, intake, hood),
 
-                // --- PATH 3: Ir para posição de lançamento ---
-                new InstantCommand(() -> {
-                    follower.followPath(path11, false);
-                    shooter.setTargetRPM(4550);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitUntilCommand(() -> shooter.getCurrentRPM()>4300),
-                new WaitCommand(200),
-                new FireSequenceCommand(indexer, intake, hood),
+                                // --- PATH 10: Ajuste Fino / Estacionar ---
+                                new InstantCommand(() -> {
+                                    shooter.stop();
+                                    follower.followPath(path12, true);
+                                }),
+                                new WaitUntilCommand(() -> !follower.isBusy()),
 
-                // --- PATH 10: Ajuste Fino / Estacionar ---
-                new InstantCommand(() -> {
-                    shooter.stop();
-                    follower.followPath(path12, true);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-
-                // Trava a torre no centro para a transição do TeleOp
-                new InstantCommand(() -> turret.travarNoZero())
-        ));
+                                // Trava a torre no centro para a transição do TeleOp
+                                new InstantCommand(() -> turret.travarNoZero())
+                        )
+                )
+                )
+        );
     }
 
     /**

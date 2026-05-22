@@ -8,6 +8,7 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.command.InstantCommand;
+import com.seattlesolvers.solverslib.command.ParallelDeadlineGroup;
 import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 import com.seattlesolvers.solverslib.command.WaitCommand;
 import com.seattlesolvers.solverslib.command.WaitUntilCommand;
@@ -96,19 +97,21 @@ public class AUTO_15_AZUL extends CommandOpMode {
         hood    = new HoodSubsystem(hardwareMap, telemetry);
         vision  = new VisionSubsystem(hardwareMap, telemetry);
 
-        turret.setDefaultCommand(new TurretTrackCommand(
-                turret, drive, vision, hood,
-                () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
-                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
-                () -> shooter.getCurrentRPM()
-        ));
-
         shooter.stop();
 
         // =========================================================
         // SEQUÊNCIA PRINCIPAL DO AUTÔNOMO
         // =========================================================
         schedule(new SequentialCommandGroup(
+                new ParallelDeadlineGroup(
+                        new TurretTrackCommand(
+                                turret, drive, vision, hood,
+                                () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
+                                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
+                                () -> shooter.getCurrentRPM()
+                        ),
+
+                new SequentialCommandGroup(
 
                 // --- PATH 1: Ir para posição de lançamento ---
                 new InstantCommand(() -> {
@@ -215,7 +218,10 @@ public class AUTO_15_AZUL extends CommandOpMode {
                 }),
                 new WaitUntilCommand(() -> !follower.isBusy())
 
-        ));
+                )
+                )
+                )
+        );
     }
 
     /**

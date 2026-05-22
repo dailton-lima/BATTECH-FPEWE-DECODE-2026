@@ -72,7 +72,7 @@ public class HoodSubsystem extends SubsystemBase {
      * Move o servo diretamente para uma posição.
      */
     public void setPosition(double targetPosition) {
-        double safePosition = Range.clip(targetPosition, 0.1, 1.0);
+        double safePosition = Range.clip(targetPosition, 0.0, 1.0);
         this.currentPosition = safePosition;
         hoodServo.setPosition(safePosition + offsetTiro);
     }
