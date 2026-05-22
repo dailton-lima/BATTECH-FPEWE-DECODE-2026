@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.commands;
 
+import com.qualcomm.robotcore.util.Range; // <-- Import necessário para travar o limite do servo
 import com.seattlesolvers.solverslib.command.CommandBase;
 import com.seattlesolvers.solverslib.geometry.Pose2d;
 
@@ -25,13 +26,17 @@ public class ShootOnMoveCommand extends CommandBase {
 
     private final Telemetry telemetry;
 
-
     private long lastFireTime = 0;
     private static final long FIRE_COOLDOWN_MS = 500;
+    private final boolean isAutonomous;
+    private final boolean shoot;
+    private boolean tiroIniciado = false;
+    private FireSequenceCommand comandoDeTiro = null;
 
     public ShootOnMoveCommand(TurretSubsystem turret, DriveSubsystem drive, VisionSubsystem vision,
                               ShooterSubsystem shooter, IndexerSubsystem indexer, IntakeSubsystem intake, HoodSubsystem hood,
-                              Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier, Telemetry telemetry) {
+                              Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier, Telemetry telemetry,
+                              boolean isAutonomous, boolean shoot) {
         this.turret = turret;
         this.drive = drive;
         this.vision = vision;
@@ -42,12 +47,16 @@ public class ShootOnMoveCommand extends CommandBase {
         this.targetPoseSupplier = targetPoseSupplier;
         this.targetTagIdSupplier = targetTagIdSupplier;
         this.telemetry = telemetry;
+        this.isAutonomous = isAutonomous;
+        this.shoot = shoot;
 
         addRequirements(turret, shooter, hood);
     }
 
     @Override
     public void initialize() {
+        // Reseta o estado do tiro toda vez que o comando é chamado/agendado
+        tiroIniciado = false;
     }
 
     @Override
@@ -63,21 +72,17 @@ public class ShootOnMoveCommand extends CommandBase {
         // ====================================================================
         // NOVO: OFFSET FÍSICO DA TORRE (Translação Cinemática)
         // ====================================================================
-        // COLOQUE AQUI AS MEDIDAS REAIS COM A FITA MÉTRICA (em polegadas)
-        // Ex: Se o eixo da torre está 5 polegadas para trás do centro do robô -> X = -5.0
         double OFFSET_X = -2.0;
-        double OFFSET_Y = 0.0;  // 0 se a torre estiver bem no meio do robô na lateral
+        double OFFSET_Y = 0.0;
 
-        // Calcula onde a torre realmente está no campo naquele momento
+        // Calculates real position of the turret on the field
         double torreX = poseAtual.getX() + (OFFSET_X * Math.cos(headingRad) - OFFSET_Y * Math.sin(headingRad));
         double torreY = poseAtual.getY() + (OFFSET_X * Math.sin(headingRad) + OFFSET_Y * Math.cos(headingRad));
 
         // ====================================================================
         // 1. DISTÂNCIA 100% ODOMETRIA (Usando as coordenadas da Torre!)
         // ====================================================================
-        // Note que mudamos 'poseAtual' para 'torreX' e 'torreY'
         double distOdo = Math.hypot(alvoAtual.getX() - torreX, alvoAtual.getY() - torreY);
-
         double distFinal = distOdo;
 
         telemetry.addData("MIRA - Distancia (Odo Torre - Usada)", distFinal);
@@ -103,37 +108,93 @@ public class ShootOnMoveCommand extends CommandBase {
         while (anguloBaseTurret > 180) anguloBaseTurret -= 360;
         while (anguloBaseTurret <= -180) anguloBaseTurret += 360;
 
-
         // ====================================================================
         // 4. COMPENSAÇÃO DE VELOCIDADE (LEAD SHOT) E ATUAÇÃO
         // ====================================================================
-        // O ShotSolution recebe os dados já calculados a partir da torre
-        double compensacaoDinamica = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distFinal, velAtual, anguloGlobalRad);
-
+        double currentRPM = shooter.getCurrentRPM();
+        double compensacaoDinamica = ShotSolution.calcularCompensacao(currentRPM, distFinal, velAtual, anguloGlobalRad);
         double anguloFinal = anguloBaseTurret - compensacaoDinamica;
 
         turret.setAngle(anguloFinal);
+
+        // Define as posições base teóricas
         hood.setPositionFromDistance(distFinal);
         shooter.setRPMFromDistance(distFinal);
 
         // ====================================================================
-        // 5. VALIDAÇÃO DE DISPARO RIGOROSA
+        // 4.5. O PULO DO GATO: COMPENSAÇÃO DINÂMICA DO HOOD
+        // ====================================================================
+        // Pega o RPM que o motor DEVERIA estar vs o RPM que ele ESTÁ agora
+        double targetRPM = ShooterSubsystem.targetRPM; // Acessa a variável estática do seu subsistema
+        double rpmError = targetRPM - currentRPM;
+
+        // Multiplicador de Compensação (Ajuste no laboratório!)
+//        // Ex: Se o erro for 100 RPM e o Kp for 0.0004, o offset do servo será 0.04
+//        double HOOD_COMP_kP = 0.0002;
+//
+//        double offsetDinamico = rpmError * HOOD_COMP_kP;
+//
+//        // Trava de segurança: impede que o servo tente quebrar o robô se o erro for absurdo
+//        offsetDinamico = Range.clip(offsetDinamico, -0.05, 0.05);
+//
+//        // Aplica o offset em tempo real enquanto o robô se move
+//        hood.setOffsetTiro(offsetDinamico);
+
+        // ====================================================================
+        // 5. VALIDAÇÃO DE DISPARO ACELERADA E FLEXÍVEL
         // ====================================================================
         double erroDeMira = Math.abs(turret.getCurrentAngle() - anguloFinal);
 
-        boolean torreCravada = erroDeMira < 0.45;
-        boolean motorPronto = shooter.isAtTargetRPM();
+        // A sua tolerância ajustada
+        double toleranciaAceitavel = (distFinal < 100.0) ? 1.7 : 0.5;
 
+        boolean torreCravada = erroDeMira < toleranciaAceitavel;
+
+        // O robô não espera mais o erro ficar minúsculo. Se estiver dentro de 250 RPM, ele atira
+        // sabendo que o Hood compensou a diferença mecânica.
+        boolean motorPronto = Math.abs(rpmError) < 250.0;
+
+        // Telemetria de diagnóstico em movimento
+//        telemetry.addData("HOOD - Offset Dinamico", offsetDinamico);
+        telemetry.addData("MIRA - Erro Angular Atual", erroDeMira);
+        telemetry.addData("MIRA - Tolerancia Permitida", toleranciaAceitavel);
+        telemetry.addData("MIRA - Torre Travada?", torreCravada ? "SIM" : "NAO");
+        telemetry.addData("MIRA - Motor Aceitavel?", motorPronto ? "SIM" : "NAO");
+
+        // ====================================================================
         // 6. O DISPARO
-        if (torreCravada && motorPronto && (System.currentTimeMillis() - lastFireTime > FIRE_COOLDOWN_MS)) {
-            new FireSequenceCommand(indexer, intake, hood).schedule();
+        // ====================================================================
+        if (shoot && torreCravada && motorPronto && !tiroIniciado && (System.currentTimeMillis() - lastFireTime > FIRE_COOLDOWN_MS)) {
+            comandoDeTiro = new FireSequenceCommand(indexer, intake, hood);
+            comandoDeTiro.schedule();
             lastFireTime = System.currentTimeMillis();
+
+            tiroIniciado = true;
         }
     }
 
     @Override
     public boolean isFinished() {
-        return false;
+        if (!isAutonomous) {
+            return false; // No TeleOp, não termina sozinho
+        } else {
+            // Se já mandou atirar...
+            if (tiroIniciado) {
+                // Espera 100ms para garantir que o agendador registrou o comando de tiro
+                if (System.currentTimeMillis() - lastFireTime > 100) {
+                    // Só termina quando a sequência de tiro sumir da fila de comandos!
+                    if (comandoDeTiro != null && !comandoDeTiro.isScheduled()) {
+                        return true;
+                    }
+                }
+            }
+            // Salva-vidas: Se algo travar e ele não conseguir mirar,
+            // aborta após 4 segundos para não estragar o resto do Autônomo.
+            if (System.currentTimeMillis() - lastFireTime > 4000 && !tiroIniciado) {
+                return true;
+            }
+            return false;
+        }
     }
 
     @Override

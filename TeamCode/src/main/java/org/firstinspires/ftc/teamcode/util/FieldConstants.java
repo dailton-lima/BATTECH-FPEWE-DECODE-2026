@@ -9,12 +9,16 @@ public class FieldConstants {
     // Esta variável pode ser definida no início do TeleOp ou vinda do PoseStorage
     public static Alliance activeAlliance = Alliance.BLUE;
 
+    public static Pose2d poseGoalAzul = new Pose2d(9.0, 133.0, 0.0);
+
+    public static Pose2d poseGoalVermelho = new Pose2d(133.0, 133.0, 0.0);
+
     // Definição da posição do GOAL com base na aliança
     public static Pose2d getTargetPose(TargetGoal goal) {
         if (activeAlliance == Alliance.BLUE) {
-            return new Pose2d(3.0, 139.0, 0.0); // Coordenada do GOAL Azul
+            return poseGoalAzul; // Coordenada do GOAL Azul
         } else {
-            return new Pose2d(139.0, 139.0, 0.0); // Coordenada do GOAL Vermelho
+            return poseGoalVermelho; // Coordenada do GOAL Vermelho
         }
     }
 

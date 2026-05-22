@@ -15,11 +15,12 @@ public class TurretSubsystem extends SubsystemBase {
 
     private final DcMotorEx turretMotor;
 
-    public static double kP = 0.052;
+    public static double kP = 0.05;
     public static double kI = 0.0;
     public static double kD = 0.0009;
     public static double kF = 0.05;
-    public static double ANGLE_OFFSET = 0.0; // <-- AJUSTE AQUI (negativo = corrige para esquerda)
+
+    public static double ANGLE_OFFSET = 0.0;// <-- AJUSTE AQUI (negativo = corrige para esquerda)
 
     private final PIDController pidController = new PIDController(kP, kI, kD);
 
@@ -51,11 +52,6 @@ public class TurretSubsystem extends SubsystemBase {
     /**
      * NOVO MÉTODO: Define a posição inicial vinda do PoseStorage
      */
-    public void loadStartingAngle(double storedAngle) {
-        this.teleopStartAngle = storedAngle;
-        this.targetAngle = Range.clip(storedAngle, -90, 90);
-        this.usingAutoAngle = true; // Avisa à matemática que o valor foi herdado!
-    }
 
     /**
      * NOVO MÉTODO: Ativa a trava invisível para o final do Autônomo
@@ -70,8 +66,12 @@ public class TurretSubsystem extends SubsystemBase {
             // Se a trava estiver ativa, esmaga ordens externas e mantém em 0
             this.targetAngle = 0.0;
         } else {
-            this.targetAngle = Range.clip(angle, -90, 90);
+            this.targetAngle = Range.clip(angle+ANGLE_OFFSET, -90, 90);
         }
+    }
+
+    public void setAngleOffset(double angleOffset) {
+            this.ANGLE_OFFSET = angleOffset;
     }
 
     public double getCurrentAngle() {
@@ -103,7 +103,6 @@ public class TurretSubsystem extends SubsystemBase {
         double safePower = Range.clip(power, -0.6, 0.6);
 
         // Salva o ângulo continuamente na memória estática
-        PoseStorage.storeTurretAngle(getCurrentAngle());
 
         turretMotor.setPower(safePower);
 

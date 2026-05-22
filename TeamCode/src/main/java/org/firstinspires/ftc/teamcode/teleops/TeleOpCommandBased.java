@@ -52,8 +52,6 @@ public class TeleOpCommandBased extends CommandOpMode {
 
         drive = new DriveSubsystem(hardwareMap, hardwareMap.voltageSensor.iterator().next(), follower, telemetry);
         turret = new TurretSubsystem(hardwareMap, telemetry);
-        turret.loadStartingAngle(poseTurret);
-
         shooter = new ShooterSubsystem(hardwareMap, telemetry);
         intake = new IntakeSubsystem(hardwareMap);
         indexer = new IndexerSubsystem(hardwareMap);
@@ -78,10 +76,12 @@ public class TeleOpCommandBased extends CommandOpMode {
         }, drive));
 
         turret.setDefaultCommand(new TurretTrackCommand(
-                turret, drive, vision, shooter, hood,
+                turret, drive, vision, hood,
                 () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
-                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL)
+                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
+                () -> shooter.getCurrentRPM()
         ));
+
 
         piloto1.getGamepadButton(GamepadKeys.Button.BACK)
                 .whenPressed(new InstantCommand(() -> drive.resetHeading()));
@@ -114,7 +114,7 @@ public class TeleOpCommandBased extends CommandOpMode {
                         turret, drive, vision, shooter, indexer, intake, hood,
                         () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
                         () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
-                        telemetry
+                        telemetry, false, true
                 ));
 
 //        piloto2.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)

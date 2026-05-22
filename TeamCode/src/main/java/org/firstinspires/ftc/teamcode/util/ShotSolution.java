@@ -16,7 +16,7 @@ public class ShotSolution {
 
     // A CHAVE MESTRA DO AJUSTE:
     // Compensa a resistência do ar. Se o robô anda para a direita e o tiro falha para a esquerda (atrasado), AUMENTE este valor.
-    public static double TIME_OF_FLIGHT_MULTIPLIER = 1.35;
+    public static double TIME_OF_FLIGHT_MULTIPLIER = 1.8;
 
     /**
      * @param currentRPM RPM atual lido pelo encoder do motor.

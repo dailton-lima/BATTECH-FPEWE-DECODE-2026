@@ -22,13 +22,14 @@ public class HoodSubsystem extends SubsystemBase {
     // PONTOS DA LUT (ajuste pelo Dashboard em tempo real)
     // Distâncias fixas em polegadas, só a posição do servo muda
     // =========================================================
-    public static double POS_20  = 0.20;
-    public static double POS_40  = 0.35;
-    public static double POS_60  = 0.65;
-    public static double POS_80  = 0.50;
-    public static double POS_100 = 0.45;
-    public static double POS_120 = 0.30;
-    public static double POS_140 = 0.20;
+    public static double POS_20  = 0.00;
+    public static double POS_40  = 0.15;
+    public static double POS_60  = 0.3;
+    public static double POS_80  = 0.425;
+    public static double POS_100 = 0.525;
+    public static double POS_120 = 0.425;
+    public static double POS_140 = 0.38;
+    public static double POS_160 = 0.38;
 
     private double offsetTiro = 0.0;
 
@@ -47,8 +48,8 @@ public class HoodSubsystem extends SubsystemBase {
      */
     private void buildLUT() {
         hoodLUT = new InterpLUT(
-                Arrays.asList(20.0,   40.0,   60.0,   80.0,   100.0,   120.0,   140.0),
-                Arrays.asList(POS_20, POS_40, POS_60, POS_80, POS_100, POS_120, POS_140)
+                Arrays.asList(20.0,   40.0,   60.0,   80.0,   100.0,   120.0,   140.0, 160.0),
+                Arrays.asList(POS_20, POS_40, POS_60, POS_80, POS_100, POS_120, POS_140, POS_160)
         );
         hoodLUT.createLUT();
     }
@@ -62,7 +63,7 @@ public class HoodSubsystem extends SubsystemBase {
 
     public void setPositionFromDistance(double distanceInches) {
         double targetPos = hoodLUT.get(distanceInches);
-        setPosition(targetPos);
+        setPosition(targetPos + offsetTiro);
     }
 
 
@@ -73,11 +74,11 @@ public class HoodSubsystem extends SubsystemBase {
     public void setPosition(double targetPosition) {
         double safePosition = Range.clip(targetPosition, 0.1, 1.0);
         this.currentPosition = safePosition;
-        hoodServo.setPosition(safePosition);
+        hoodServo.setPosition(safePosition + offsetTiro);
     }
 
     public double getServoPosition() {
-        return currentPosition;
+        return currentPosition + offsetTiro;
     }
 
     @Override

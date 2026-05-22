@@ -1,18 +1,19 @@
 package org.firstinspires.ftc.teamcode.commands;
 
+import com.qualcomm.robotcore.util.Range; // <-- Novo Import Obrigatório
 import com.seattlesolvers.solverslib.command.CommandBase;
 import com.seattlesolvers.solverslib.geometry.Pose2d;
 import org.firstinspires.ftc.teamcode.subsystems.*;
 import org.firstinspires.ftc.teamcode.util.PoseStorage;
 import org.firstinspires.ftc.teamcode.util.ShotSolution;
 
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 public class TurretTrackCommand extends CommandBase {
     private final TurretSubsystem turret;
     private final DriveSubsystem drive;
     private final VisionSubsystem vision;
-    private final ShooterSubsystem shooter;
     private final HoodSubsystem hood;
 
     private final Supplier<Pose2d> targetPoseSupplier;
@@ -25,19 +26,22 @@ public class TurretTrackCommand extends CommandBase {
     // Constante Proporcional (kP) para a Câmera
     private static final double VISION_KP = 0.4;
 
+    private final DoubleSupplier rpmSupplier;
+
     // Construtor padrão (TeleOp) — multiplier = 1.0, sem mudar nada
 
     // Construtor com multiplicador (Autônomo)
     public TurretTrackCommand(TurretSubsystem turret, DriveSubsystem drive,
-                              VisionSubsystem vision, ShooterSubsystem shooter, HoodSubsystem hood,
-                              Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier) {
+                              VisionSubsystem vision, HoodSubsystem hood,
+                              Supplier<Pose2d> targetPoseSupplier, Supplier<Integer> targetTagIdSupplier,
+                              DoubleSupplier rpmSupplier) {
         this.turret = turret;
         this.drive = drive;
         this.vision = vision;
-        this.shooter = shooter;
         this.hood = hood;
         this.targetPoseSupplier = targetPoseSupplier;
         this.targetTagIdSupplier = targetTagIdSupplier;
+        this.rpmSupplier = rpmSupplier;
 
         addRequirements(turret, hood);
     }
@@ -95,11 +99,40 @@ public class TurretTrackCommand extends CommandBase {
         // 4. COMPENSAÇÃO DE VELOCIDADE (LEAD SHOT) E ATUAÇÃO
         // ====================================================================
         // O ShotSolution recebe os dados já calculados a partir da torre
-        double compensacaoDinamica = ShotSolution.calcularCompensacao(shooter.getCurrentRPM(), distFinal, velAtual, anguloGlobalRad);
+        double rpmAtual = rpmSupplier.getAsDouble();
+        double compensacaoDinamica = 0.0;
+
+        // SÓ aplica a física de compensação de movimento se o motor estiver ligado!
+        // Se estiver abaixo de 500 RPM, ignora para evitar bugs matemáticos de divisão por zero.
+        if (rpmAtual > 500) {
+            compensacaoDinamica = ShotSolution.calcularCompensacao(rpmAtual, distFinal, velAtual, anguloGlobalRad);
+        }
 
         double anguloFinal = anguloBaseTurret - compensacaoDinamica;
 
         turret.setAngle(anguloFinal);
         hood.setPositionFromDistance(distFinal);
+
+//        // ====================================================================
+//        // 5. O PULO DO GATO: COMPENSAÇÃO DINÂMICA DO HOOD NO AUTÔNOMO
+//        // ====================================================================
+//        // Acessa o alvo que foi definido externamente no subsistema
+//        double targetRPM = ShooterSubsystem.targetRPM;
+//
+//        // Só aplica a correção do Hood se o robô tiver intenção de atirar
+//        if (targetRPM > 2000) {
+//            double rpmError = targetRPM - rpmAtual;
+//
+//            // Multiplicador de Compensação (Mesmo valor que calibrar no ShootOnMove)
+//            double HOOD_COMP_kP = 0.0002;
+//
+//            // Limita o offset para impedir danos mecânicos no servo (-15% a +15%)
+//            double offsetDinamico = Range.clip(rpmError * HOOD_COMP_kP, -0.05, 0.05);
+//
+//            hood.setOffsetTiro(offsetDinamico);
+//        } else {
+//            // Se o motor está desligado (ex: o robô está a viajar para a próxima pose), zera o offset
+//            hood.setOffsetTiro(0.0);
+//        }
     }
 }

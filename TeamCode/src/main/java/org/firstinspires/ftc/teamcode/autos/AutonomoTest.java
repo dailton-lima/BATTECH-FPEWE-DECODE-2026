@@ -12,8 +12,10 @@ import com.seattlesolvers.solverslib.command.RunCommand;
 import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 import com.seattlesolvers.solverslib.command.WaitCommand;
 import com.seattlesolvers.solverslib.command.WaitUntilCommand;
+import com.seattlesolvers.solverslib.geometry.Pose2d;
 
 import org.firstinspires.ftc.teamcode.commands.FireSequenceCommand;
+import org.firstinspires.ftc.teamcode.commands.ShootOnMoveCommand;
 import org.firstinspires.ftc.teamcode.commands.TurretTrackCommand;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.*;
@@ -48,7 +50,7 @@ public class AutonomoTest extends CommandOpMode {
     private final Pose pose8 = new Pose(48.7, 70.1, Math.toRadians(180)); // Sair da área
 
     // RPM de lançamento no autônomo
-    private static final double SHOOT_RPM = 3950;
+    private static final double SHOOT_RPM = 3800;
 
     // Multiplicador do hood
 
@@ -65,13 +67,14 @@ public class AutonomoTest extends CommandOpMode {
         hood    = new HoodSubsystem(hardwareMap, telemetry);
         vision  = new VisionSubsystem(hardwareMap, telemetry);
 
-        shooter.setTargetRPM(0);
-
         turret.setDefaultCommand(new TurretTrackCommand(
-                turret, drive, vision, shooter, hood,
+                turret, drive, vision, hood,
                 () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
-                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL)
+                () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
+                () -> shooter.getCurrentRPM()
         ));
+
+        shooter.stop();
 
         // =========================================================
         // SEQUÊNCIA PRINCIPAL DO AUTÔNOMO
@@ -80,14 +83,17 @@ public class AutonomoTest extends CommandOpMode {
 
                 // --- PATH 1: Ir para posição de lançamento ---
                 new InstantCommand(() -> {
-                    shooter.setTargetRPM(SHOOT_RPM);
                     followPath(pose1, false);
+                    Pose2d alvo = FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL);
+                    double distanciaEsperada = Math.hypot(alvo.getX() - pose1.getX(), alvo.getY() - pose1.getY());
+                    shooter.setRPMFromDistance(distanciaEsperada);
                 }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
-                new WaitCommand(1000),
+                new WaitCommand(1500),
+                new FireSequenceCommand(indexer,intake,hood),
 
                 // --- LANÇAMENTO 1 ---
-                new FireSequenceCommand(indexer, intake, hood),
+
                 new WaitCommand(200),
 
                 // --- PATH 2: Liga intake e avança ---
@@ -105,7 +111,12 @@ public class AutonomoTest extends CommandOpMode {
                 new InstantCommand(() -> intake.stop()),
 
                 // --- PATH 4: Ir para posição de lançamento ---
-                new InstantCommand(() -> followPath(pose4, false)),
+                new InstantCommand(() -> {
+                    followPath(pose4, false);
+                    Pose2d alvo = FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL);
+                    double distanciaEsperada = Math.hypot(alvo.getX() - pose4.getX(), alvo.getY() - pose4.getY());
+                    shooter.setRPMFromDistance(distanciaEsperada);
+                }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
                 new WaitCommand(500),
 
@@ -128,7 +139,12 @@ public class AutonomoTest extends CommandOpMode {
                 new InstantCommand(() -> intake.stop()),
 
                 // --- PATH 7: Ir para posição de lançamento ---
-                new InstantCommand(() -> followPath(pose7, false)),
+                new InstantCommand(() -> {
+                    followPath(pose7, false);
+                    Pose2d alvo = FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL);
+                    double distanciaEsperada = 5+Math.hypot(alvo.getX() - pose7.getX(), alvo.getY() - pose7.getY());
+                    shooter.setRPMFromDistance(distanciaEsperada);
+                }),
                 new WaitUntilCommand(() -> !follower.isBusy()),
                 new WaitCommand(500),
 
