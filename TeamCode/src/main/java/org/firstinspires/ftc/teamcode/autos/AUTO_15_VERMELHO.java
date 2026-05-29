@@ -43,7 +43,7 @@ public class AUTO_15_VERMELHO extends CommandOpMode {
     // =========================================================
     // POSES SEQUENCIAIS (Destinos de cada Path)
     // =========================================================
-    private final Pose startPose = new Pose(31.5, 133.5, Math.toRadians(0));
+    private final Pose startPose = new Pose(142.0-31.5, 133.5, Math.toRadians(0));
 
     private final Pose pose1  = new Pose(142.0-54.3, 85.0, Math.toRadians(0)); // Lançar 1
     private final Pose pose2  = new Pose(142.0-42.5, 61.0, Math.toRadians(0)); // Desce para coleta

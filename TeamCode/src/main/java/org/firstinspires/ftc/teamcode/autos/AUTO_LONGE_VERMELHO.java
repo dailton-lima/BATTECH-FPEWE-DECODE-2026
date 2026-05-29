@@ -25,7 +25,7 @@ import org.firstinspires.ftc.teamcode.subsystems.VisionSubsystem;
 import org.firstinspires.ftc.teamcode.util.FieldConstants;
 import org.firstinspires.ftc.teamcode.util.PoseStorage;
 
-@Autonomous(name = "AUTO - AZUL LONGE", group = "Competição VERMELHO")
+@Autonomous(name = "AUTO - VERMELHO LONGE", group = "Competição VERMELHO")
 public class AUTO_LONGE_VERMELHO extends CommandOpMode {
 
     private Follower follower;

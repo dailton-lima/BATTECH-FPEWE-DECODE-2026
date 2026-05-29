@@ -35,6 +35,8 @@ public class TeleOpCommandBased extends CommandOpMode {
 
     private Follower follower;
 
+    private Pose startPoseReset;
+
     @Override
     public void initialize() {
         follower = Constants.createFollower(hardwareMap);
@@ -46,6 +48,13 @@ public class TeleOpCommandBased extends CommandOpMode {
             follower.setStartingPose(PoseStorage.getPose());
         } else {
             follower.setStartingPose(new Pose(134, 8, Math.toRadians(90)));
+        }
+
+
+        if (FieldConstants.activeAlliance == FieldConstants.Alliance.RED) {
+            startPoseReset = new Pose(8, 8, Math.toRadians(90));
+        } else {
+            startPoseReset = new Pose(134, 8, Math.toRadians(90));
         }
 
         double poseTurret = PoseStorage.getTurretAngle();
@@ -67,6 +76,9 @@ public class TeleOpCommandBased extends CommandOpMode {
         // PILOTO 1: DRIVE + INTAKE
         // =========================================================
 
+        piloto1.getGamepadButton(GamepadKeys.Button.BACK)
+                .whenPressed(new InstantCommand(() -> follower.setPose(startPoseReset)));
+
         drive.setDefaultCommand(new RunCommand(() -> {
             drive.drive(
                     -piloto1.getLeftX(),
@@ -81,10 +93,6 @@ public class TeleOpCommandBased extends CommandOpMode {
                 () -> FieldConstants.getTargetTagId(FieldConstants.TargetGoal.GOAL),
                 () -> shooter.getCurrentRPM()
         ));
-
-
-        piloto1.getGamepadButton(GamepadKeys.Button.BACK)
-                .whenPressed(new InstantCommand(() -> drive.resetHeading()));
 
         piloto1.getGamepadButton(GamepadKeys.Button.RIGHT_STICK_BUTTON)
                 .toggleWhenPressed(
@@ -117,19 +125,10 @@ public class TeleOpCommandBased extends CommandOpMode {
                         telemetry, false, true
                 ));
 
-//        piloto2.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
-//                .toggleWhenPressed(
-//                        new InstantCommand(() -> shooter.setTargetRPM(6000)),
-//                        new InstantCommand(() -> shooter.stop())
-//                );
-//
-//        piloto2.getGamepadButton(GamepadKeys.Button.Y)
-//                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(4000)));
-//        piloto2.getGamepadButton(GamepadKeys.Button.X)
-//                .whenPressed(new InstantCommand(() -> shooter.setTargetRPM(3500)));
-//
-//        piloto2.getGamepadButton(GamepadKeys.Button.A)
-//                .whenPressed(new FireSequenceCommand(indexer, intake, hood));
+        piloto2.getGamepadButton(GamepadKeys.Button.X)
+                .whenPressed(new InstantCommand(() -> TurretSubsystem.ANGLE_OFFSET -= 1.0)); // Ajuste -1 grau
+        piloto2.getGamepadButton(GamepadKeys.Button.B)
+                .whenPressed(new InstantCommand(() -> TurretSubsystem.ANGLE_OFFSET += 1.0)); // Ajuste +1 grau
 
         piloto2.getGamepadButton(GamepadKeys.Button.DPAD_LEFT)
                 .whenPressed(new InstantCommand(() -> indexer.unlock()));
