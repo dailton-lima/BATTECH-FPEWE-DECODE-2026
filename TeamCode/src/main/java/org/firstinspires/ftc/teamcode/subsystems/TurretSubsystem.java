@@ -20,7 +20,7 @@ public class TurretSubsystem extends SubsystemBase {
     public static double kD = 0.0009;
     public static double kF = 0.05;
 
-    public static double ANGLE_OFFSET = 0.0;// <-- AJUSTE AQUI (negativo = corrige para esquerda)
+    public static double ANGLE_OFFSET = 0.0; // <-- AJUSTE AQUI (negativo = corrige para esquerda)
 
     private final PIDController pidController = new PIDController(kP, kI, kD);
 
@@ -49,13 +49,6 @@ public class TurretSubsystem extends SubsystemBase {
         register();
     }
 
-    /**
-     * NOVO MÉTODO: Define a posição inicial vinda do PoseStorage
-     */
-
-    /**
-     * NOVO MÉTODO: Ativa a trava invisível para o final do Autônomo
-     */
     public void travarNoZero() {
         this.forcarZeroNoFinal = true;
         this.targetAngle = 0.0;
@@ -66,23 +59,24 @@ public class TurretSubsystem extends SubsystemBase {
             // Se a trava estiver ativa, esmaga ordens externas e mantém em 0
             this.targetAngle = 0.0;
         } else {
-            this.targetAngle = Range.clip(angle+ANGLE_OFFSET, -90, 90);
+            // CORREÇÃO: Removemos o + ANGLE_OFFSET daqui!
+            // Guardamos apenas a intenção LÓGICA pura que o comando ShootOnMove pediu.
+            this.targetAngle = angle;
         }
     }
 
     public void setAngleOffset(double angleOffset) {
-            this.ANGLE_OFFSET = angleOffset;
+        this.ANGLE_OFFSET = angleOffset;
     }
 
     public double getCurrentAngle() {
         double rawAngle = turretMotor.getCurrentPosition() / TICKS_PER_DEGREE;
 
         if (usingAutoAngle) {
-            // O valor do autônomo JÁ TEM o offset físico embutido.
-            // Basta somar ao encoder zerado.
             return rawAngle + teleopStartAngle;
         } else {
-            // Se ligou o robô direto no TeleOp, usa a matemática padrão com offset.
+            // O ShootOnMove recebe o ângulo subtraído do offset, 
+            // logo ele vê o mundo através da matemática pura, sem saber que o motor está compensado.
             return rawAngle - ANGLE_OFFSET;
         }
     }
@@ -90,9 +84,19 @@ public class TurretSubsystem extends SubsystemBase {
     @Override
     public void periodic() {
         pidController.setPID(kP, kI, kD);
-        double pidOutput = pidController.calculate(getCurrentAngle(), targetAngle);
+        
+        // CORREÇÃO: O Offset é somado APENAS no cálculo Físico do PID!
+        // O Alvo Físico real da torre considera o Alvo Matemático + Offset do Piloto.
+        // O Range.clip garante que o offset não force a torre a partir os limites físicos de 90 graus.
+        double physicalTarget = Range.clip(targetAngle + ANGLE_OFFSET, -90, 90);
+        
+        // O Posição Física real (leitura bruta do motor)
+        double physicalCurrent = turretMotor.getCurrentPosition() / TICKS_PER_DEGREE;
 
-        double error = targetAngle - getCurrentAngle();
+        // O PID agora calcula usando valores 100% físicos, acabando com a ilusão!
+        double pidOutput = pidController.calculate(physicalCurrent, physicalTarget);
+
+        double error = physicalTarget - physicalCurrent;
         double ffOutput = 0;
 
         if (Math.abs(error) > 0.5) {
@@ -102,15 +106,13 @@ public class TurretSubsystem extends SubsystemBase {
         double power = pidOutput + ffOutput;
         double safePower = Range.clip(power, -0.6, 0.6);
 
-        // Salva o ângulo continuamente na memória estática
-
         turretMotor.setPower(safePower);
 
-        telemetry.addData("Turret - Ângulo Alvo", targetAngle);
-        telemetry.addData("Turret - Ângulo Real", getCurrentAngle());
-        telemetry.addData("Turret - Erro (Graus)", error);
-
-        // Linhas de Debug para ajudar no painel
+        // Telemetria Ajustada para mostrar o que está acontecendo por trás das cortinas
+        telemetry.addData("Turret - Alvo Matemático", targetAngle);
+        telemetry.addData("Turret - Alvo Físico (Motor)", physicalTarget);
+        telemetry.addData("Turret - Offset Atual", ANGLE_OFFSET);
+        telemetry.addData("Turret - Erro Físico", error);
         telemetry.addData("Turret - Herdado (Auto)?", usingAutoAngle ? "SIM (" + teleopStartAngle + ")" : "NAO");
         telemetry.addData("Turret - Trava do Zero?", forcarZeroNoFinal ? "ATIVA" : "Desligada");
     }
