@@ -148,10 +148,14 @@ public class AUTO_15_VERMELHO extends CommandOpMode {
                 new FireSequenceCommand(indexer, intake, hood),
 
                 // --- PATH 5 (CURVA): Abre o gate-
-                new InstantCommand(() -> follower.followPath(path5, false)),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                new InstantCommand(() -> {
+                    pathStartTime = System.currentTimeMillis();
+                    follower.followPath(path5, false);
+    // ... os seus comandos de shooter ...
+                }),
+                new WaitUntilCommand(() -> !follower.isBusy() || (System.currentTimeMillis() - pathStartTime > 2500)),
                 new WaitCommand(400),
-
+                    
                 // --- PATH 6: Coleta no gate ---
                 new InstantCommand(() -> {
                     follower.followPath(path6, false);
@@ -172,8 +176,12 @@ public class AUTO_15_VERMELHO extends CommandOpMode {
                 new FireSequenceCommand(indexer, intake, hood),
 
                 // --- PATH 8 (CURVA): Abre o gate ---
-                new InstantCommand(() -> follower.followPath(path8, false)),
-                new WaitUntilCommand(() -> !follower.isBusy()),
+                new InstantCommand(() -> {
+                    pathStartTime = System.currentTimeMillis();
+                    follower.followPath(path8, false);
+    // ... os seus comandos de shooter ...
+                }),
+                new WaitUntilCommand(() -> !follower.isBusy() || (System.currentTimeMillis() - pathStartTime > 2500)),
                 new WaitCommand(400),
 
                 // --- PATH 9: Coleta no gate ---
