@@ -20,8 +20,6 @@ public class TurretSubsystem extends SubsystemBase {
     public static double kD = 0.0009;
     public static double kF = 0.05;
 
-    public static double ANGLE_OFFSET = 0.0; // <-- AJUSTE AQUI (negativo = corrige para esquerda)
-
     private final PIDController pidController = new PIDController(kP, kI, kD);
 
     private double targetAngle = 0.0;
@@ -29,9 +27,10 @@ public class TurretSubsystem extends SubsystemBase {
     // =========================================================
     // VARIÁVEIS DA TRANSIÇÃO E CONTROLE
     // =========================================================
+    public boolean isManualMode = false;       // <-- NOVO: Controle de calibração manual
     private double teleopStartAngle = 0.0;
-    private boolean usingAutoAngle = false;    // Evita o bug do "Offset Duplo"
-    private boolean forcarZeroNoFinal = false; // A trava mecânica invisível
+    private boolean usingAutoAngle = false;    // Herdado do Autônomo
+    private boolean forcarZeroNoFinal = false; // Trava mecânica invisível
 
     private final double TICKS_PER_REV_MOTOR = 537.7;
     private final double EXTERNAL_GEAR_RATIO = 140.0 / 30.0;
@@ -58,15 +57,29 @@ public class TurretSubsystem extends SubsystemBase {
         if (forcarZeroNoFinal) {
             // Se a trava estiver ativa, esmaga ordens externas e mantém em 0
             this.targetAngle = 0.0;
-        } else {
-            // CORREÇÃO: Removemos o + ANGLE_OFFSET daqui!
-            // Guardamos apenas a intenção LÓGICA pura que o comando ShootOnMove pediu.
-            this.targetAngle = angle;
+        } else if (!isManualMode) {
+            // Só aceita ordens matemáticas se NÃO estiver no modo manual (Fail-Safe)
+            this.targetAngle = Range.clip(angle, -90, 90);
         }
     }
 
-    public void setAngleOffset(double angleOffset) {
-        this.ANGLE_OFFSET = angleOffset;
+    /**
+     * Zera o encoder fisicamente na posição atual.
+     * O que quer que seja a posição atual da torre, passa a ser o novo 0 graus.
+     */
+    public void resetEncoder() {
+        turretMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        turretMotor.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        this.targetAngle = 0.0; // Define o alvo para o novo zero
+    }
+
+    /**
+     * Define a potência bruta do motor (usado APENAS no modo manual)
+     */
+    public void setManualPower(double power) {
+        if (isManualMode) {
+            turretMotor.setPower(Range.clip(power, -0.4, 0.4)); // Limite seguro
+        }
     }
 
     public double getCurrentAngle() {
@@ -75,25 +88,25 @@ public class TurretSubsystem extends SubsystemBase {
         if (usingAutoAngle) {
             return rawAngle + teleopStartAngle;
         } else {
-            // O ShootOnMove recebe o ângulo subtraído do offset, 
-            // logo ele vê o mundo através da matemática pura, sem saber que o motor está compensado.
-            return rawAngle - ANGLE_OFFSET;
+            return rawAngle; // O encoder já é a verdade absoluta agora
         }
     }
 
     @Override
     public void periodic() {
+        // Se estivermos em modo manual, o PID é IGNORADO.
+        if (isManualMode) {
+            telemetry.addData("Turret Mode", "MANUAL (Ajuste o Zero!)");
+            telemetry.addData("Turret - Ângulo Bruto", getCurrentAngle());
+            return; // Sai do método antes de calcular o PID
+        }
+
+        // --- CÁLCULO NORMAL DO PID (Modo Automático) ---
         pidController.setPID(kP, kI, kD);
         
-        // CORREÇÃO: O Offset é somado APENAS no cálculo Físico do PID!
-        // O Alvo Físico real da torre considera o Alvo Matemático + Offset do Piloto.
-        // O Range.clip garante que o offset não force a torre a partir os limites físicos de 90 graus.
-        double physicalTarget = Range.clip(targetAngle + ANGLE_OFFSET, -90, 90);
-        
-        // O Posição Física real (leitura bruta do motor)
+        double physicalTarget = Range.clip(targetAngle, -90, 90);
         double physicalCurrent = turretMotor.getCurrentPosition() / TICKS_PER_DEGREE;
 
-        // O PID agora calcula usando valores 100% físicos, acabando com a ilusão!
         double pidOutput = pidController.calculate(physicalCurrent, physicalTarget);
 
         double error = physicalTarget - physicalCurrent;
@@ -108,10 +121,9 @@ public class TurretSubsystem extends SubsystemBase {
 
         turretMotor.setPower(safePower);
 
-        // Telemetria Ajustada para mostrar o que está acontecendo por trás das cortinas
+        telemetry.addData("Turret Mode", "AUTO TRACKING");
         telemetry.addData("Turret - Alvo Matemático", targetAngle);
-        telemetry.addData("Turret - Alvo Físico (Motor)", physicalTarget);
-        telemetry.addData("Turret - Offset Atual", ANGLE_OFFSET);
+        telemetry.addData("Turret - Real", getCurrentAngle());
         telemetry.addData("Turret - Erro Físico", error);
         telemetry.addData("Turret - Herdado (Auto)?", usingAutoAngle ? "SIM (" + teleopStartAngle + ")" : "NAO");
         telemetry.addData("Turret - Trava do Zero?", forcarZeroNoFinal ? "ATIVA" : "Desligada");
