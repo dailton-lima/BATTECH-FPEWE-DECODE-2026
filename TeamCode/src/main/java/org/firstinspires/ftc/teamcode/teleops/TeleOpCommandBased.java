@@ -42,14 +42,13 @@ public class TeleOpCommandBased extends CommandOpMode {
         follower = Constants.createFollower(hardwareMap);
 
         // =========================================================
-        // POSE INICIAL: pega do autônomo se existir, senão usa padrão
+        // POSE INICIAL
         // =========================================================
         if (PoseStorage.getPose().getX() > 0  && PoseStorage.getPose().getY() > 0) {
             follower.setStartingPose(PoseStorage.getPose());
         } else {
             follower.setStartingPose(new Pose(134, 8, Math.toRadians(90)));
         }
-
 
         if (FieldConstants.activeAlliance == FieldConstants.Alliance.RED) {
             startPoseReset = new Pose(8, 8, Math.toRadians(90));
@@ -87,6 +86,7 @@ public class TeleOpCommandBased extends CommandOpMode {
             );
         }, drive));
 
+        // Comando padrão da Torreta continua a ser o Track Automático
         turret.setDefaultCommand(new TurretTrackCommand(
                 turret, drive, vision, hood,
                 () -> FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL),
@@ -114,7 +114,7 @@ public class TeleOpCommandBased extends CommandOpMode {
         }, intake));
 
         // =========================================================
-        // PILOTO 2: TURRET + SHOOTER + HOOD
+        // PILOTO 2: TURRET + SHOOTER + HOOD + CALIBRAÇÃO MANUAL
         // =========================================================
 
         piloto2.getGamepadButton(GamepadKeys.Button.RIGHT_BUMPER)
@@ -125,10 +125,33 @@ public class TeleOpCommandBased extends CommandOpMode {
                         telemetry, false, true
                 ));
 
+        // ---------------------------------------------------------
+        // FAIL-SAFE DA TORRETA (Calibração em Jogo)
+        // ---------------------------------------------------------
+        // Botão X: Desliga o PID e entra no modo de calibração manual
         piloto2.getGamepadButton(GamepadKeys.Button.X)
-                .whenPressed(new InstantCommand(() -> TurretSubsystem.ANGLE_OFFSET -= 1.0)); // Ajuste -1 grau
+                .whenPressed(new InstantCommand(() -> {
+                    turret.isManualMode = true;
+                }));
+
+        // Adiciona um comando de background para o Joystick Direito do Piloto 2 controlar a torre no modo manual
+        new RunCommand(() -> {
+            if (turret.isManualMode) {
+                // Lê o analógico direito (eixo X)
+                double turnPower = piloto2.getRightX();
+                turret.setManualPower(turnPower * 0.4); // Força reduzida para maior precisão visual
+            }
+        }, turret).schedule(); // Roda sempre, mas só atua se isManualMode for true
+
+        // Botão B: Zera o Encoder na posição atual e volta para o Modo Automático
         piloto2.getGamepadButton(GamepadKeys.Button.B)
-                .whenPressed(new InstantCommand(() -> TurretSubsystem.ANGLE_OFFSET += 1.0)); // Ajuste +1 grau
+                .whenPressed(new InstantCommand(() -> {
+                    if (turret.isManualMode) {
+                        turret.resetEncoder();
+                        turret.isManualMode = false;
+                    }
+                }));
+        // ---------------------------------------------------------
 
         piloto2.getGamepadButton(GamepadKeys.Button.DPAD_LEFT)
                 .whenPressed(new InstantCommand(() -> indexer.unlock()));
@@ -146,6 +169,5 @@ public class TeleOpCommandBased extends CommandOpMode {
         super.run();
         telemetry.addData("POSE INICIAL", PoseStorage.currentPose);
         telemetry.update();
-
     }
 }
