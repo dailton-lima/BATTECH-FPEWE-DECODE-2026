@@ -134,14 +134,14 @@ public class TeleOpCommandBased extends CommandOpMode {
                     turret.isManualMode = true;
                 }));
 
-        // Adiciona um comando de background para o Joystick Direito do Piloto 2 controlar a torre no modo manual
+        // CORREÇÃO: Removido o requerimento da "turret" para não matar o TurretTrackCommand!
         new RunCommand(() -> {
             if (turret.isManualMode) {
                 // Lê o analógico direito (eixo X)
                 double turnPower = piloto2.getRightX();
                 turret.setManualPower(turnPower * 0.2); // Força reduzida para maior precisão visual
             }
-        }, turret).schedule(); // Roda sempre, mas só atua se isManualMode for true
+        }).schedule(); // <-- Repare que não há ", turret" aqui dentro do parênteses.
 
         // Botão B: Zera o Encoder na posição atual e volta para o Modo Automático
         piloto2.getGamepadButton(GamepadKeys.Button.B)
