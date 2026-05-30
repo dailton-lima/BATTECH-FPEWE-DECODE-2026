@@ -139,7 +139,7 @@ public class TeleOpCommandBased extends CommandOpMode {
             if (turret.isManualMode) {
                 // Lê o analógico direito (eixo X)
                 double turnPower = piloto2.getRightX();
-                turret.setManualPower(turnPower * 0.4); // Força reduzida para maior precisão visual
+                turret.setManualPower(turnPower * 0.2); // Força reduzida para maior precisão visual
             }
         }, turret).schedule(); // Roda sempre, mas só atua se isManualMode for true
 
