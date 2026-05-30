@@ -206,22 +206,22 @@ public class AUTO_15_AZUL extends CommandOpMode {
                 new FireSequenceCommand(indexer, intake, hood),
 
                 // --- PATH 11: Liga intake e avança ---
-                new InstantCommand(() -> {
-                    follower.followPath(path11, false);
-                    intake.setPower(1.0);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new InstantCommand(() -> intake.stop()),
+              //  new InstantCommand(() -> {
+              //      follower.followPath(path11, false);
+              //      intake.setPower(1.0);
+              //  }),
+              //  new WaitUntilCommand(() -> !follower.isBusy()),
+              //  new InstantCommand(() -> intake.stop()),
 
                 // --- PATH 12 (CURVA): Ir para posição de lançamento ---
-                new InstantCommand(() -> {
-                    follower.followPath(path12, false);
-                    Pose2d alvo = FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL);
-                    double distanciaEsperada = Math.hypot(alvo.getX() - pose12.getX(), alvo.getY() - pose12.getY());
-                    shooter.setRPMFromDistance(distanciaEsperada);
-                }),
-                new WaitUntilCommand(() -> !follower.isBusy()),
-                new FireSequenceCommand(indexer, intake, hood),
+               // new InstantCommand(() -> {
+               //     follower.followPath(path12, false);
+               //     Pose2d alvo = FieldConstants.getTargetPose(FieldConstants.TargetGoal.GOAL);
+               //     double distanciaEsperada = Math.hypot(alvo.getX() - pose12.getX(), alvo.getY() - pose12.getY());
+               //     shooter.setRPMFromDistance(distanciaEsperada);
+              //  }),
+             //   new WaitUntilCommand(() -> !follower.isBusy()),
+              //  new FireSequenceCommand(indexer, intake, hood),
 
                 // --- PATH 13: Estacionar ---
                 new InstantCommand(() -> {
